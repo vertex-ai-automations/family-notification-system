@@ -26,7 +26,8 @@ def client(tmp_path):
     conn.commit()
     conn.close()
     from app.main import create_app
-    return TestClient(create_app(db_path=db_path))
+    from fastapi.testclient import TestClient
+    return TestClient(create_app(db_path=db_path, start_scheduler=False))
 
 
 @pytest.fixture
