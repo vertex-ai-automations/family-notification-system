@@ -16,8 +16,8 @@ def get_default_message(event_type: str, trigger_type: str, for_person: bool) ->
 def render_message(template: str, person: dict, days: int) -> str:
     today = datetime.date.today()
     variables = {
-        "name": person.get("name", ""),
-        "spouse": person.get("spouse_name", ""),
+        "name": person.get("name") or "",
+        "spouse": person.get("spouse_name") or "",
         "day_of_week": today.strftime("%A"),
         "days": str(days),
     }
