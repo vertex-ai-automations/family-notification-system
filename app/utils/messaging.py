@@ -1,4 +1,5 @@
 import datetime
+import re
 from typing import Optional
 
 DEFAULTS = {
@@ -8,9 +9,9 @@ DEFAULTS = {
     ("anniversary", "same_day", True): "Happy Anniversary, {name} & {spouse}! Wishing you many more years of happiness together!",
 }
 
-def get_default_message(event_type: str, trigger_type: str, for_person: bool) -> str:
+def get_default_message(event_type: str, trigger_type: str, for_person: bool) -> Optional[str]:
     category = "same_day" if trigger_type == "same_day" else "advance"
-    return DEFAULTS.get((event_type, category, for_person), "")
+    return DEFAULTS.get((event_type, category, for_person))
 
 def render_message(template: str, person: dict, days: int) -> str:
     today = datetime.date.today()
@@ -24,13 +25,13 @@ def render_message(template: str, person: dict, days: int) -> str:
     if birth_year:
         variables["age"] = str(today.year - int(birth_year))
     else:
-        template = template.replace("{age}", "")
+        template = re.sub(r'\s*\{age\}', '', template)
 
     ann_year = person.get("anniversary_year")
     if ann_year:
         variables["years_married"] = str(today.year - int(ann_year))
     else:
-        template = template.replace("{years_married}", "")
+        template = re.sub(r'\s*\{years_married\}', '', template)
 
     for key, value in variables.items():
         template = template.replace("{" + key + "}", value)

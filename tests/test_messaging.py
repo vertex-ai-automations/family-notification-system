@@ -36,3 +36,11 @@ def test_default_anniversary_advance():
 def test_default_anniversary_same_day():
     msg = get_default_message("anniversary", "same_day", for_person=True)
     assert "Anniversary" in msg
+
+def test_default_unknown_event_returns_none():
+    assert get_default_message("nameday", "same_day", True) is None
+
+def test_render_missing_birth_year_no_double_space():
+    result = render_message("{name} is {age} years old!", {"name": "John", "birth_year": None}, days=0)
+    assert "  " not in result
+    assert "John" in result

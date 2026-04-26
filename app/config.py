@@ -32,7 +32,7 @@ def hot_reload():
         twilio_from_number=os.getenv("TWILIO_FROM_NUMBER"),
         twilio_whatsapp_number=os.getenv("TWILIO_WHATSAPP_NUMBER"),
         smtp_host=os.getenv("SMTP_HOST"),
-        smtp_port=int(os.getenv("SMTP_PORT", "587")),
+        smtp_port=int(os.getenv("SMTP_PORT") or "587"),
         smtp_username=os.getenv("SMTP_USERNAME"),
         smtp_password=os.getenv("SMTP_PASSWORD"),
         smtp_from_address=os.getenv("SMTP_FROM_ADDRESS"),

@@ -17,3 +17,9 @@ def test_none_returns_none():
 
 def test_empty_returns_none():
     assert normalize_phone("") is None
+
+def test_whitespace_padded():
+    assert normalize_phone("  +17188790062  ") == "+17188790062"
+
+def test_too_short_returns_none():
+    assert normalize_phone("12345") is None

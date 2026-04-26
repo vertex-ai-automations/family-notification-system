@@ -8,9 +8,13 @@ def normalize_phone(phone: Optional[str]) -> Optional[str]:
     if not digits:
         return None
     if phone.strip().startswith("+"):
+        if len(digits) < 7 or len(digits) > 15:
+            return None
         return "+" + digits
     if len(digits) == 10:
         return "+1" + digits
     if len(digits) == 11 and digits.startswith("1"):
         return "+" + digits
+    if len(digits) < 7 or len(digits) > 15:
+        return None
     return "+" + digits

@@ -1,5 +1,4 @@
 import sqlite3
-from typing import Optional
 
 DB_PATH = "data/family.db"
 
@@ -75,7 +74,9 @@ def seed_settings(conn: sqlite3.Connection):
 
 def init_db(path: str = DB_PATH):
     import os
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
     conn = get_connection(path)
     create_tables(conn)
     seed_settings(conn)
