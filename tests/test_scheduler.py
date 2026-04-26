@@ -137,3 +137,48 @@ def test_anniversary_reminder_only_sent_when_married():
             run_advance_reminders()
 
     assert mock_service.send.call_count == 0
+
+
+def test_advance_reminder_skips_paused_person_as_subject():
+    db = make_db()
+    today = datetime.date.today()
+    in_7 = (today + datetime.timedelta(days=7)).strftime("%m-%d")
+    # Paused person whose birthday is in 7 days — should NOT trigger reminder to others
+    db.execute("INSERT INTO people (name, phone, birthday, notifications_paused) VALUES ('Paused Birthday', '+10000000001', ?, 1)", (in_7,))
+    db.execute("INSERT INTO people (name, phone, birthday) VALUES ('Other Family', '+10000000002', '06-20')")
+    db.commit()
+
+    mock_service = MagicMock()
+    mock_service.name = "sms"
+    mock_service.enabled = True
+    mock_service.send.return_value = True
+
+    with patch("app.scheduler.get_services", return_value=[mock_service]):
+        with patch("app.scheduler.get_db", return_value=db):
+            run_advance_reminders()
+
+    assert mock_service.send.call_count == 0
+
+
+def test_advance_reminder_paused_person_not_a_recipient():
+    db = make_db()
+    today = datetime.date.today()
+    in_7 = (today + datetime.timedelta(days=7)).strftime("%m-%d")
+    db.execute("INSERT INTO people (name, phone, birthday) VALUES ('Birthday Person', '+10000000001', ?)", (in_7,))
+    # This person is paused — per spec, paused = no notifications in or out
+    db.execute("INSERT INTO people (name, phone, birthday, notifications_paused) VALUES ('Paused Other', '+10000000002', '06-20', 1)")
+    db.commit()
+
+    mock_service = MagicMock()
+    mock_service.name = "sms"
+    mock_service.enabled = True
+    mock_service.send.return_value = True
+
+    with patch("app.scheduler.get_services", return_value=[mock_service]):
+        with patch("app.scheduler.get_db", return_value=db):
+            run_advance_reminders()
+
+    # Only non-paused people get reminders — Paused Other should not receive one
+    for call_args in mock_service.send.call_args_list:
+        recipient = call_args[0][0]
+        assert recipient["name"] != "Paused Other"

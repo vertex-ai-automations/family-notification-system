@@ -96,7 +96,7 @@ def setup_scheduler(services_list: list, db_path: str = "data/family.db"):
     _services = services_list
     _db_path = db_path
 
-    db = get_connection(db_path)
+    db = get_db()        # use get_db() not get_connection() directly
     job1_time = _get_setting(db, "job1_time", "08:00")
     job2_time = _get_setting(db, "job2_time", "12:00")
     catch_up_hours = int(_get_setting(db, "catch_up_hours", "6"))
