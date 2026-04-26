@@ -26,11 +26,14 @@ def _compute_days(person: dict, event_type: str) -> int:
     date_str = person.get("anniversary") if event_type == "anniversary" and person.get("anniversary") else person.get("birthday")
     if not date_str:
         return 0
-    month, day = map(int, date_str.split("-"))
-    target = datetime.date(today.year, month, day)
-    if target < today:
-        target = datetime.date(today.year + 1, month, day)
-    return (target - today).days
+    try:
+        month, day = map(int, date_str.split("-"))
+        target = datetime.date(today.year, month, day)
+        if target < today:
+            target = datetime.date(today.year + 1, month, day)
+        return (target - today).days
+    except ValueError:
+        return 0
 
 @router.post("/notifications/preview")
 def preview(req: PreviewRequest, db: sqlite3.Connection = Depends(get_db)):

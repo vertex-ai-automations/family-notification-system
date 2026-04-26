@@ -34,6 +34,10 @@ def test_update_nonexistent_returns_404(client):
     r = client.put("/api/members/9999", json={"name": "Ghost", "birthday": "01-01"})
     assert r.status_code == 404
 
+def test_delete_nonexistent_returns_404(client):
+    r = client.delete("/api/members/9999")
+    assert r.status_code == 404
+
 def test_upcoming_events(client):
     today = datetime.date.today()
     in_5 = (today + datetime.timedelta(days=5)).strftime("%m-%d")

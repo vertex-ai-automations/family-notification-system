@@ -21,13 +21,16 @@ def upcoming_events(db: sqlite3.Connection = Depends(get_db)):
         for event_type, date_str in [("birthday", p.get("birthday")), ("anniversary", p.get("anniversary") if p.get("married") else None)]:
             if not date_str:
                 continue
-            month, day = map(int, date_str.split("-"))
-            target = datetime.date(today.year, month, day)
-            if target < today:
-                target = datetime.date(today.year + 1, month, day)
-            days_away = (target - today).days
-            if days_away <= 30:
-                events.append({"id": p["id"], "name": p["name"], "event_type": event_type, "date": date_str, "days_away": days_away})
+            try:
+                month, day = map(int, date_str.split("-"))
+                target = datetime.date(today.year, month, day)
+                if target < today:
+                    target = datetime.date(today.year + 1, month, day)
+                days_away = (target - today).days
+                if days_away <= 30:
+                    events.append({"id": p["id"], "name": p["name"], "event_type": event_type, "date": date_str, "days_away": days_away})
+            except ValueError:
+                continue
     return sorted(events, key=lambda x: x["days_away"])
 
 @router.post("", status_code=201)
@@ -58,7 +61,7 @@ def update_member(person_id: int, person: PersonUpdate, db: sqlite3.Connection =
     if data["whatsapp"] and data["whatsapp"] == data["phone"]:
         data["whatsapp"] = None
     data["id"] = person_id
-    data["updated_at"] = datetime.datetime.utcnow().isoformat()
+    data["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     db.execute(
         """UPDATE people SET name=:name,phone=:phone,email=:email,whatsapp=:whatsapp,birthday=:birthday,
            birth_year=:birth_year,married=:married,spouse_name=:spouse_name,anniversary=:anniversary,
@@ -72,5 +75,7 @@ def update_member(person_id: int, person: PersonUpdate, db: sqlite3.Connection =
 
 @router.delete("/{person_id}", status_code=204)
 def delete_member(person_id: int, db: sqlite3.Connection = Depends(get_db)):
-    db.execute("DELETE FROM people WHERE id=?", (person_id,))
+    result = db.execute("DELETE FROM people WHERE id=?", (person_id,))
     db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(404, "Person not found")

@@ -18,12 +18,22 @@ def import_json(data: dict, db: sqlite3.Connection) -> dict:
             continue
 
         phone = normalize_phone(p.get("phone"))
+        whatsapp = normalize_phone(p.get("whatsapp"))
+        if whatsapp and whatsapp == phone:
+            whatsapp = None
         married = bool(p.get("married", False))
+
         cursor = db.execute(
-            """INSERT INTO people (name, phone, birthday, married, spouse_name, anniversary)
-               VALUES (?,?,?,?,?,?)""",
-            (name, phone, p.get("birthday", ""), married,
-             p.get("spouse") or p.get("spouse_name"), p.get("anniversary"))
+            """INSERT INTO people
+               (name, phone, email, whatsapp, birthday, birth_year, married, spouse_name,
+                anniversary, anniversary_year, custom_birthday_message, custom_anniversary_message)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (name, phone,
+             p.get("email"), whatsapp,
+             p.get("birthday", ""), p.get("birth_year"),
+             married, p.get("spouse") or p.get("spouse_name"),
+             p.get("anniversary"), p.get("anniversary_year"),
+             p.get("custom_birthday_message", ""), p.get("custom_anniversary_message", ""))
         )
         person_id = cursor.lastrowid
         db.commit()

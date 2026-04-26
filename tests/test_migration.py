@@ -60,3 +60,10 @@ def test_import_list_format():
     data = {"people": [{"name": "Alice", "birthday": "05-10", "phone": "2125551234"}]}
     result = import_json(data, db)
     assert result["imported"] == 1
+
+def test_import_preserves_email():
+    db = make_db()
+    data = {"people": [{"name": "Alice", "birthday": "05-10", "email": "alice@test.com"}]}
+    import_json(data, db)
+    row = db.execute("SELECT email FROM people WHERE name='Alice'").fetchone()
+    assert row["email"] == "alice@test.com"
