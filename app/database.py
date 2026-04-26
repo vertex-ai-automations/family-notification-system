@@ -1,0 +1,82 @@
+import sqlite3
+from typing import Optional
+
+DB_PATH = "data/family.db"
+
+def get_connection(path: str = DB_PATH) -> sqlite3.Connection:
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+def create_tables(conn: sqlite3.Connection):
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS people (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        whatsapp TEXT,
+        birthday TEXT NOT NULL,
+        birth_year INTEGER,
+        married BOOLEAN DEFAULT 0,
+        spouse_name TEXT,
+        anniversary TEXT,
+        anniversary_year INTEGER,
+        custom_birthday_message TEXT DEFAULT '',
+        custom_anniversary_message TEXT DEFAULT '',
+        notifications_paused BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS notification_state (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        year_sent INTEGER NOT NULL,
+        sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(person_id, event_type, trigger_type, channel, year_sent)
+    );
+    CREATE TABLE IF NOT EXISTS notification_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        message_body TEXT NOT NULL,
+        status TEXT NOT NULL,
+        error_message TEXT,
+        sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+    """)
+    conn.commit()
+
+DEFAULTS = {
+    "advance_days_week": "7",
+    "advance_days_day": "1",
+    "job1_time": "08:00",
+    "job2_time": "12:00",
+    "catch_up_hours": "6",
+    "sms_enabled": "true",
+    "whatsapp_enabled": "true",
+    "email_enabled": "true",
+}
+
+def seed_settings(conn: sqlite3.Connection):
+    for key, value in DEFAULTS.items():
+        conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+
+def init_db(path: str = DB_PATH):
+    import os
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    conn = get_connection(path)
+    create_tables(conn)
+    seed_settings(conn)
+    return conn
