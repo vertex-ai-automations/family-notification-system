@@ -1,6 +1,9 @@
+import logging
 import smtplib
 from email.mime.text import MIMEText
 from app.services.base import NotificationService
+
+logger = logging.getLogger(__name__)
 
 
 class EmailService(NotificationService):
@@ -29,13 +32,15 @@ class EmailService(NotificationService):
                 server.sendmail(self._from, recipient, msg.as_string())
             return True
         except Exception as e:
-            print(f"Email send failed for {person.get('name')}: {e}")
+            logger.warning("Email send failed for %s: %s", person.get("name"), e)
             return False
 
     def health_check(self) -> bool:
         try:
             with smtplib.SMTP(self._host, self._port, timeout=5) as server:
                 server.ehlo()
+                server.starttls()
+                server.login(self._username, self._password)
             return True
         except Exception:
             return False

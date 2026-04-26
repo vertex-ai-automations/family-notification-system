@@ -99,3 +99,18 @@ def test_email_sends_to_email_field():
 def test_email_skips_person_with_no_email():
     svc = EmailService("smtp.gmail.com", 587, "user@test.com", "pass", "user@test.com")
     assert svc.send({"name": "John", "email": None}, "msg") is True
+
+
+def test_whatsapp_skips_person_with_no_contact():
+    with patch("app.services.twilio_whatsapp.Client"):
+        svc = TwilioWhatsAppService("AC123", "tok", "whatsapp:+14155238886")
+        result = svc.send({"name": "John", "phone": None, "whatsapp": None}, "msg")
+        assert result is True
+
+
+def test_email_returns_false_on_smtp_error():
+    with patch("app.services.email_smtp.smtplib.SMTP") as mock_smtp_cls:
+        mock_smtp_cls.side_effect = Exception("SMTP connection failed")
+        svc = EmailService("smtp.gmail.com", 587, "user@test.com", "pass", "user@test.com")
+        result = svc.send({"name": "John", "email": "john@example.com"}, "msg")
+        assert result is False

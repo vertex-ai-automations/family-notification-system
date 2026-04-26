@@ -34,11 +34,8 @@ def execute_send(
             (person["id"], event_type, trigger_type, service.name, message, "sent" if success else "failed")
         )
         if success and write_state:
-            try:
-                db.execute(
-                    "INSERT INTO notification_state (person_id, event_type, trigger_type, channel, year_sent) VALUES (?,?,?,?,?)",
-                    (person["id"], event_type, trigger_type, service.name, year)
-                )
-            except Exception:
-                pass
-        db.commit()
+            db.execute(
+                "INSERT OR IGNORE INTO notification_state (person_id, event_type, trigger_type, channel, year_sent) VALUES (?,?,?,?,?)",
+                (person["id"], event_type, trigger_type, service.name, year)
+            )
+    db.commit()

@@ -1,5 +1,8 @@
+import logging
 from twilio.rest import Client
 from app.services.base import NotificationService
+
+logger = logging.getLogger(__name__)
 
 
 class TwilioSMSService(NotificationService):
@@ -18,7 +21,7 @@ class TwilioSMSService(NotificationService):
             self._client.messages.create(to=recipient, from_=self._from, body=message)
             return True
         except Exception as e:
-            print(f"SMS send failed for {person.get('name')}: {e}")
+            logger.warning("SMS send failed for %s: %s", person.get("name"), e)
             return False
 
     def health_check(self) -> bool:

@@ -1,5 +1,8 @@
+import logging
 from twilio.rest import Client
 from app.services.base import NotificationService
+
+logger = logging.getLogger(__name__)
 
 
 class TwilioWhatsAppService(NotificationService):
@@ -7,6 +10,8 @@ class TwilioWhatsAppService(NotificationService):
 
     def __init__(self, account_sid: str, auth_token: str, from_number: str):
         self._client = Client(account_sid, auth_token)
+        if not from_number.startswith("whatsapp:"):
+            from_number = f"whatsapp:{from_number}"
         self._from = from_number
         self.enabled = True
 
@@ -19,7 +24,7 @@ class TwilioWhatsAppService(NotificationService):
             self._client.messages.create(to=to, from_=self._from, body=message)
             return True
         except Exception as e:
-            print(f"WhatsApp send failed for {person.get('name')}: {e}")
+            logger.warning("WhatsApp send failed for %s: %s", person.get("name"), e)
             return False
 
     def health_check(self) -> bool:

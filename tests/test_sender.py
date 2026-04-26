@@ -53,3 +53,16 @@ def test_write_state_false_does_not_write_state(db, mock_sms_service):
     assert state is None
     log = db.execute("SELECT * FROM notification_log WHERE person_id=1").fetchone()
     assert log["status"] == "sent"
+
+
+def test_already_sent_returns_true_when_state_exists(db):
+    from app.utils.sender import already_sent
+    year = datetime.date.today().year
+    db.execute("INSERT INTO notification_state (person_id, event_type, trigger_type, channel, year_sent) VALUES (1,'birthday','same_day','sms',?)", (year,))
+    db.commit()
+    assert already_sent(db, 1, "birthday", "same_day", "sms") is True
+
+
+def test_already_sent_returns_false_when_no_state(db):
+    from app.utils.sender import already_sent
+    assert already_sent(db, 1, "birthday", "same_day", "sms") is False
