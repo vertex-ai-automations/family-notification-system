@@ -1,0 +1,6 @@
+.env
+data/family.db
+data/exports/
+__pycache__/
+*.pyc
+.pytest_cache/
