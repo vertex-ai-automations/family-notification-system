@@ -421,6 +421,16 @@ function showMemberForm(m, members) {
   if (!m.married) annSection.style.display = "none";
   marriedCheck.addEventListener("change", e => annSection.style.display = e.target.checked ? "" : "none");
 
+  function relSelect(name, label) {
+    const others = (members || []).filter(x => x.id !== m.id);
+    const sel = h("select", { name },
+      h("option", { value: "" }, "— none —"),
+      ...others.map(x => h("option", { value: x.id, selected: m[name] === x.id }, x.name)),
+    );
+    fields[name] = sel;
+    return h("div", { class: "field" }, h("label", null, label), sel);
+  }
+
   const form = h("form", null,
     h("div", { class: "form-row" },
       field("name", "Name *", { required: true }),
@@ -439,6 +449,13 @@ function showMemberForm(m, members) {
     textareaField("custom_birthday_message", "Custom Birthday Message", "Variables: {name} {age} {days} {day_of_week}"),
     textareaField("custom_anniversary_message", "Custom Anniversary Message", "Variables: {name} {spouse} {years_married} {days}"),
     h("label", { class: "check-label" }, pausedCheck, "Pause all notifications for this person"),
+    h("h3", { class: "section-title", style: { marginTop: "1.25rem" } }, "Family relationships (for tree)"),
+    h("div", { class: "form-row" },
+      relSelect("mother_id", "Mother"),
+      relSelect("father_id", "Father"),
+    ),
+    relSelect("spouse_id", "Spouse link"),
+    h("div", { class: "field-help" }, "Spouse link connects people in the family tree — set on either person and it syncs both ways."),
   );
 
   const cancelBtn = h("button", { type: "button", class: "btn btn-ghost", onclick: closeModal }, "Cancel");
@@ -458,6 +475,9 @@ function showMemberForm(m, members) {
       custom_birthday_message: fields.custom_birthday_message.value || "",
       custom_anniversary_message: fields.custom_anniversary_message.value || "",
       notifications_paused: pausedCheck.checked,
+      mother_id: fields.mother_id.value ? parseInt(fields.mother_id.value) : null,
+      father_id: fields.father_id.value ? parseInt(fields.father_id.value) : null,
+      spouse_id: fields.spouse_id.value ? parseInt(fields.spouse_id.value) : null,
     };
     await withBusy(saveBtn, async () => {
       const r = m.id ? await api("PUT", `/members/${m.id}`, data) : await api("POST", "/members", data);
