@@ -570,18 +570,52 @@ pages.logs = async (app) => {
   const fromInput = h("input", { type: "date", "aria-label": "From date" });
   const toInput = h("input", { type: "date", "aria-label": "To date" });
   const filterBtn = h("button", { class: "btn btn-primary btn-sm" }, "Apply filters");
+  const exportBtn = h("button", { class: "btn btn-ghost" }, icon("download"), "Export CSV");
+  const resetBtn = h("button", { class: "btn btn-danger" }, icon("trash"), "Reset");
+  const countLabel = h("span", { class: "muted text-sm" });
 
   const out = h("div");
 
-  async function load() {
+  function currentParams() {
     const params = new URLSearchParams();
     if (channelSel.value) params.set("channel", channelSel.value);
     if (statusSel.value) params.set("status", statusSel.value);
     if (eventSel.value) params.set("event_type", eventSel.value);
     if (fromInput.value) params.set("date_from", fromInput.value);
     if (toInput.value) params.set("date_to", toInput.value);
+    return params;
+  }
+
+  exportBtn.addEventListener("click", () => {
+    const params = currentParams();
+    const qs = params.toString();
+    window.location.href = `/api/logs/export.csv${qs ? "?" + qs : ""}`;
+  });
+
+  resetBtn.addEventListener("click", async () => {
+    const params = currentParams();
+    const filtered = params.toString() !== "";
+    const msg = filtered
+      ? "Delete all log rows matching the current filters? This cannot be undone."
+      : "Delete ALL notification log entries? Notification state (the per-year duplicate guard) is preserved. This cannot be undone — export first if you want a backup.";
+    if (!await confirmAsync(msg, { confirmText: "Delete logs", danger: true })) return;
+    await withBusy(resetBtn, async () => {
+      const qs = params.toString();
+      const r = await fetch(`/api/logs${qs ? "?" + qs : ""}`, { method: "DELETE" });
+      if (!r.ok) { toast(`${r.status}: ${await r.text()}`, "error"); return; }
+      const j = await r.json();
+      toast(`Deleted ${j.deleted} log ${j.deleted === 1 ? "entry" : "entries"}`, "success");
+      load();
+    });
+  });
+
+  async function load() {
+    const params = currentParams();
     const logs = await api("GET", `/logs?${params}`);
     if (!logs) return;
+    countLabel.textContent = logs.length === 0
+      ? "0 entries"
+      : logs.length >= 500 ? "Showing latest 500 entries" : `${logs.length} ${logs.length === 1 ? "entry" : "entries"}`;
     if (!logs.length) {
       out.replaceChildren(h("div", { class: "card" }, emptyState("inbox", "No logs match these filters", "Try clearing filters or trigger a notification.")));
       return;
@@ -624,7 +658,10 @@ pages.logs = async (app) => {
   filterBtn.addEventListener("click", load);
 
   app.append(
-    h("h1", { class: "page-title" }, "Notification Logs"),
+    h("div", { class: "page-header" },
+      h("h1", { class: "page-title" }, "Notification Logs"),
+      h("div", { class: "flex gap-2" }, exportBtn, resetBtn),
+    ),
     h("div", { class: "filter-bar" },
       h("div", { class: "field" }, h("label", null, "Channel"), channelSel),
       h("div", { class: "field" }, h("label", null, "Status"), statusSel),
@@ -633,6 +670,7 @@ pages.logs = async (app) => {
       h("div", { class: "field" }, h("label", null, "To"), toInput),
       filterBtn,
     ),
+    h("div", { class: "action-bar", style: { marginBottom: "8px", marginTop: "-8px" } }, countLabel),
     out,
   );
   load();
