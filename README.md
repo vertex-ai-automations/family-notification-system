@@ -64,27 +64,41 @@ See `CLAUDE.md` for the developer-facing architecture detail.
 
 ### Option A — one-shot installer (Raspberry Pi / Debian / Ubuntu)
 
+Single command — clones the repo, creates the venv, installs deps, scaffolds `.env`, and installs the systemd unit:
+
 ```bash
-git clone https://github.com/<you>/family-notification-system.git
-cd family-notification-system
-./install.sh                  # creates venv, installs deps, sets up systemd
-# Edit .env with your real credentials
-$EDITOR .env
+curl -fsSL https://raw.githubusercontent.com/vertex-ai-automations/family-notification-system/master/install.sh | bash
+```
+
+Or with options (custom install location, port, branch):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vertex-ai-automations/family-notification-system/master/install.sh \
+  | TARGET_DIR=/opt/family-notifier PORT=8080 bash
+```
+
+Then edit `.env` and start the service:
+
+```bash
+$EDITOR /path/to/family-notification-system/.env
 sudo systemctl start family-notifier
 ```
 
+If you've already cloned the repo, just run `./install.sh` from inside it — the same script detects the existing checkout and skips the clone step.
+
 The installer:
+- clones `vertex-ai-automations/family-notification-system` (skipped when run from inside an existing checkout)
 - creates `venv/` and installs `requirements.txt`
 - copies `.env.example` → `.env` if missing
 - substitutes the current user, repo path, and port into the systemd unit and installs it to `/etc/systemd/system/family-notifier.service`
 - enables (but does not start) the service so you can edit `.env` first
 
-Flags: `PORT=8080 ./install.sh` to override the default port (8001), `./install.sh --no-systemd` to skip systemd setup (for development / Docker / non-systemd hosts).
+Flags & env overrides: `PORT=8080`, `TARGET_DIR=/opt/family-notifier`, `BRANCH=v1.2.0`, `REPO_URL=…` for forks, and `--no-systemd` to skip the systemd step (for development / Docker / non-systemd hosts).
 
 ### Option B — manual
 
 ```bash
-git clone https://github.com/<you>/family-notification-system.git
+git clone https://github.com/vertex-ai-automations/family-notification-system.git
 cd family-notification-system
 
 python3 -m venv venv
