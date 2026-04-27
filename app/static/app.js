@@ -101,6 +101,22 @@ function openModal({ title, body, actions = [] }) {
   if (body instanceof Node) bodyEl.appendChild(body);
   else if (typeof body === "string") bodyEl.appendChild(document.createTextNode(body));
 
+  // If body contains a <form>, route any submit-typed action button to it.
+  // (The button lives in the modal footer, outside the form, so a plain
+  // type="submit" wouldn't fire the form's submit event by itself.)
+  const formEl = bodyEl.querySelector("form");
+  if (formEl) {
+    for (const a of actions) {
+      if (a.tagName === "BUTTON" && a.type === "submit") {
+        a.type = "button";
+        a.addEventListener("click", () => {
+          if (typeof formEl.requestSubmit === "function") formEl.requestSubmit();
+          else formEl.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+        });
+      }
+    }
+  }
+
   const actionsEl = actions.length ? h("div", { class: "modal-actions" }, ...actions) : null;
 
   const modalCard = h("div", {
