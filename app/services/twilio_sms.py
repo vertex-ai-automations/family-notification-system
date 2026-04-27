@@ -1,6 +1,7 @@
 import logging
 from twilio.rest import Client
 from app.services.base import NotificationService
+from app.utils.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +14,20 @@ class TwilioSMSService(NotificationService):
         self._from = from_number
         self.enabled = True
 
-    def send(self, person: dict, message: str) -> bool:
+    def send(self, person: dict, message: str, **context) -> bool:
+        self._reset()
         recipient = person.get("phone")
         if not recipient:
+            self.last_skip = True
             return True
         try:
-            self._client.messages.create(to=recipient, from_=self._from, body=message)
+            with_retry(
+                lambda: self._client.messages.create(to=recipient, from_=self._from, body=message),
+                label=f"sms→{person.get('name')}",
+            )
             return True
         except Exception as e:
+            self.last_error = str(e)
             logger.warning("SMS send failed for %s: %s", person.get("name"), e)
             return False
 

@@ -70,14 +70,17 @@ def test_whatsapp_uses_whatsapp_field_when_set():
         assert call_kwargs["to"] == "whatsapp:+19998887777"
 
 
-def test_whatsapp_falls_back_to_phone():
+def test_whatsapp_skips_when_only_phone_set():
+    # Behavior change: WhatsApp no longer falls back to phone, since sending to a
+    # plain phone almost always fails Twilio sandbox rules and floods failure logs.
     with patch("app.services.twilio_whatsapp.Client") as mock_cls:
         mock_client = MagicMock()
         mock_cls.return_value = mock_client
         svc = TwilioWhatsAppService("AC123", "tok", "whatsapp:+14155238886")
-        svc.send({"name": "John", "phone": "+17188790062", "whatsapp": None}, "msg")
-        call_kwargs = mock_client.messages.create.call_args.kwargs
-        assert call_kwargs["to"] == "whatsapp:+17188790062"
+        result = svc.send({"name": "John", "phone": "+17188790062", "whatsapp": None}, "msg")
+        assert result is True
+        assert svc.last_skip is True
+        mock_client.messages.create.assert_not_called()
 
 
 # --- Task 9: Email SMTP ---

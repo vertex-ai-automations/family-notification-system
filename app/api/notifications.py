@@ -22,16 +22,13 @@ class PauseRequest(BaseModel):
     paused: bool
 
 def _compute_days(person: dict, event_type: str) -> int:
+    from app.scheduler import days_until
     today = datetime.date.today()
     date_str = person.get("anniversary") if event_type == "anniversary" and person.get("anniversary") else person.get("birthday")
     if not date_str:
         return 0
     try:
-        month, day = map(int, date_str.split("-"))
-        target = datetime.date(today.year, month, day)
-        if target < today:
-            target = datetime.date(today.year + 1, month, day)
-        return (target - today).days
+        return days_until(date_str)
     except ValueError:
         return 0
 

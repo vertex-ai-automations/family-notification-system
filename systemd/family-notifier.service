@@ -4,9 +4,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/family-notification-system
-ExecStart=/home/pi/family-notification-system/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+User=hassan
+WorkingDirectory=/home/hassan/family-notification-system
+ExecStart=/home/hassan/family-notification-system/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
 Restart=on-failure
 RestartSec=5
 

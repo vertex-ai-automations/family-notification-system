@@ -8,7 +8,10 @@ from app.services.base import NotificationService
 class FailSMS(NotificationService):
     name = "sms"
     enabled = True
-    def send(self, person, message): return False
+    def send(self, person, message, **context):
+        self._reset()
+        self.last_error = "boom"
+        return False
     def health_check(self): return False
 
 

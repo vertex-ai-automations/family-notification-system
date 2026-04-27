@@ -36,7 +36,8 @@ def mock_sms_service():
         name = "sms"
         enabled = True
         calls = []
-        def send(self, person, message):
+        def send(self, person, message, **context):
+            self._reset()
             self.calls.append((person["name"], message))
             return True
         def health_check(self):

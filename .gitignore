@@ -1,6 +1,39 @@
+# Secrets — never commit
 .env
+.env.tmp.*
+.env.*.tmp
+
+# Local DB and exports
 data/family.db
+data/family.db-wal
+data/family.db-shm
 data/exports/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenv
+venv/
+.venv/
+env/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build / packaging
+*.egg-info/
+dist/
+build/

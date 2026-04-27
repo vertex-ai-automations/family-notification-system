@@ -1,7 +1,7 @@
 import datetime
 import sqlite3
 from fastapi import APIRouter, HTTPException, Depends
-from app.models import PersonCreate, PersonUpdate
+from app.models import PersonCreate, PersonUpdate, PersonPartialUpdate
 from app.utils.phone import normalize_phone
 from app.api.deps import get_db
 
@@ -72,6 +72,27 @@ def update_member(person_id: int, person: PersonUpdate, db: sqlite3.Connection =
     )
     db.commit()
     return dict(db.execute("SELECT * FROM people WHERE id=?", (person_id,)).fetchone())
+
+@router.patch("/{person_id}")
+def patch_member(person_id: int, person: PersonPartialUpdate, db: sqlite3.Connection = Depends(get_db)):
+    if not db.execute("SELECT id FROM people WHERE id=?", (person_id,)).fetchone():
+        raise HTTPException(404, "Person not found")
+    data = person.model_dump(exclude_unset=True)
+    if "phone" in data:
+        data["phone"] = normalize_phone(data.get("phone"))
+    if "whatsapp" in data:
+        data["whatsapp"] = normalize_phone(data.get("whatsapp"))
+        if data["whatsapp"] and data["whatsapp"] == data.get("phone"):
+            data["whatsapp"] = None
+    if not data:
+        return dict(db.execute("SELECT * FROM people WHERE id=?", (person_id,)).fetchone())
+    data["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    fragments = ", ".join(f"{k}=:{k}" for k in data)
+    data["id"] = person_id
+    db.execute(f"UPDATE people SET {fragments} WHERE id=:id", data)
+    db.commit()
+    return dict(db.execute("SELECT * FROM people WHERE id=?", (person_id,)).fetchone())
+
 
 @router.delete("/{person_id}", status_code=204)
 def delete_member(person_id: int, db: sqlite3.Connection = Depends(get_db)):
