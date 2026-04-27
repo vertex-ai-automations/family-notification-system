@@ -731,12 +731,30 @@ td .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .toast { max-width: none; }
 }
 
-/* ── Family Tree ─────────────────────────────────────────────────────────── */
-.tree-legend { display: flex; gap: 1.5rem; padding: 0.75rem 0.25rem; align-items: center; font-size: 0.875rem; color: var(--color-muted); flex-wrap: wrap; }
-.tree-legend-item { display: flex; align-items: center; gap: 0.5rem; }
-.tree-legend-line { display: inline-block; width: 2rem; height: 2px; border-radius: 1px; }
-.tree-line-parent { background: var(--color-primary); opacity: 0.75; }
-.tree-line-spouse { background: none; border-top: 2px dashed #e91e8c; height: 0; opacity: 0.8; }
+/* ── Family Tree (powered by family-chart) ───────────────────────────────── */
+.family-chart-host {
+  width: 100%;
+  height: calc(100vh - 220px);
+  min-height: 480px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+/* Override family-chart's dark default theme to match our tokens */
+.family-chart-host.f3 {
+  --female-color: #c48a92;
+  --male-color: #789fac;
+  --genderless-color: #94a3b8;
+  --background-color: var(--color-surface);
+  --text-color: var(--color-text);
+  font-family: inherit;
+}
+.family-chart-host .card-inner {
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+}
+.family-chart-host text { font-family: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

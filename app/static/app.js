@@ -871,8 +871,38 @@ pages.settings = async (app) => {
 };
 
 // ── Family Tree ─────────────────────────────────────────────────────────────
-function escHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// Powered by family-chart (MIT, github.com/donatso/family-chart) + d3.
+// The chart is interactive: click a card to re-center on that person, drag to
+// pan, scroll to zoom. Library files are vendored under /static/vendor/.
+
+function buildFamilyChartData(nodes) {
+  const childrenByParent = {};
+  const spousesByPerson = {};
+  for (const n of nodes) {
+    if (n.mother_id) (childrenByParent[n.mother_id] ||= []).push(String(n.id));
+    if (n.father_id) (childrenByParent[n.father_id] ||= []).push(String(n.id));
+    if (n.spouse_id) (spousesByPerson[n.id] ||= []).push(String(n.spouse_id));
+  }
+  // Infer gender from how the person is referenced — mom-of-someone -> F, dad -> M
+  const genderOf = {};
+  for (const n of nodes) {
+    if (n.mother_id && !genderOf[n.mother_id]) genderOf[n.mother_id] = "F";
+    if (n.father_id && !genderOf[n.father_id]) genderOf[n.father_id] = "M";
+  }
+  return nodes.map(n => ({
+    id: String(n.id),
+    rels: {
+      mother: n.mother_id ? String(n.mother_id) : undefined,
+      father: n.father_id ? String(n.father_id) : undefined,
+      spouses: spousesByPerson[n.id] || [],
+      children: childrenByParent[n.id] || [],
+    },
+    data: {
+      first_name: n.name,
+      birthday: n.birthday || "",
+      gender: genderOf[n.id] || "",
+    },
+  }));
 }
 
 pages.tree = async (app) => {
@@ -882,6 +912,8 @@ pages.tree = async (app) => {
 
   const header = h("div", { class: "page-header" },
     h("h1", { class: "page-title" }, "Family Tree"),
+    h("span", { class: "muted text-sm" },
+      `${nodes.length} ${nodes.length === 1 ? "member" : "members"} · ${edges.length} link${edges.length === 1 ? "" : "s"}`),
   );
 
   if (!nodes.length) {
@@ -891,147 +923,6 @@ pages.tree = async (app) => {
     );
     return;
   }
-
-  const parentEdges = edges.filter(e => e.relation === "parent");
-  const spouseEdges = edges.filter(e => e.relation === "spouse");
-
-  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
-
-  // Pick a primary parent per node (mother first, else father). The layout
-  // tree is built from primary parents only; the secondary parent edge still
-  // gets drawn, it just doesn't drive positioning.
-  const primaryOf = (n) => {
-    if (n.mother_id && byId[n.mother_id]) return n.mother_id;
-    if (n.father_id && byId[n.father_id]) return n.father_id;
-    return null;
-  };
-
-  // Children grouped under their primary parent, ordered by other-parent then name
-  const childrenOf = {};
-  for (const n of nodes) {
-    const pid = primaryOf(n);
-    if (pid) (childrenOf[pid] ||= []).push(n);
-  }
-  for (const arr of Object.values(childrenOf)) {
-    arr.sort((a, b) => {
-      const aOther = (primaryOf(a) === a.mother_id) ? (a.father_id || 0) : (a.mother_id || 0);
-      const bOther = (primaryOf(b) === b.mother_id) ? (b.father_id || 0) : (b.mother_id || 0);
-      if (aOther !== bOther) return aOther - bOther;
-      return a.name.localeCompare(b.name);
-    });
-  }
-
-  // Roots: nodes whose primary parent isn't in the data set
-  const roots = nodes.filter(n => primaryOf(n) === null).sort((a, b) => a.name.localeCompare(b.name));
-
-  // Layout constants
-  const NW = 130, NH = 44, HGAP = 24, VGAP = 90, PAD = 24, FAMILY_GAP = 64;
-
-  // Memoized subtree width: max(NW, sum of child widths + gaps)
-  const widthCache = {};
-  const subtreeWidth = (node, visiting = new Set()) => {
-    if (widthCache[node.id] !== undefined) return widthCache[node.id];
-    if (visiting.has(node.id)) return NW;  // cycle guard
-    visiting.add(node.id);
-    const kids = childrenOf[node.id] || [];
-    let w = NW;
-    if (kids.length) {
-      const sum = kids.map(k => subtreeWidth(k, visiting)).reduce((a, b) => a + b, 0);
-      w = Math.max(NW, sum + HGAP * (kids.length - 1));
-    }
-    visiting.delete(node.id);
-    widthCache[node.id] = w;
-    return w;
-  };
-
-  // Place a subtree starting at leftX; return its rightX
-  const pos = {};
-  const placed = new Set();
-  const place = (node, leftX, gen) => {
-    if (placed.has(node.id)) return leftX;  // cycle / re-entry guard
-    placed.add(node.id);
-    const kids = childrenOf[node.id] || [];
-    const w = subtreeWidth(node);
-    const y = PAD + gen * (NH + VGAP);
-    if (!kids.length) {
-      pos[node.id] = { x: leftX + (w - NW) / 2, y };
-      return leftX + w;
-    }
-    let cursor = leftX;
-    for (const k of kids) {
-      const kw = subtreeWidth(k);
-      place(k, cursor, gen + 1);
-      cursor += kw + HGAP;
-    }
-    const childrenSpan = cursor - HGAP - leftX;
-    pos[node.id] = { x: leftX + childrenSpan / 2 - NW / 2, y };
-    return leftX + Math.max(w, childrenSpan);
-  };
-
-  let cursor = PAD;
-  for (const r of roots) {
-    cursor = place(r, cursor, 0) + FAMILY_GAP;
-  }
-
-  // Place orphans (visited via cycles or detached) as their own roots at gen 0
-  for (const n of nodes) {
-    if (!pos[n.id]) {
-      pos[n.id] = { x: cursor, y: PAD };
-      cursor += NW + HGAP;
-    }
-  }
-
-  const svgW = Math.max(...Object.values(pos).map(p => p.x + NW)) + PAD;
-  const svgH = Math.max(...Object.values(pos).map(p => p.y + NH)) + PAD;
-
-  // Build SVG (user-supplied names are HTML-escaped)
-  const parts = [];
-
-  for (const e of parentEdges) {
-    const s = pos[e.source], t = pos[e.target];
-    if (!s || !t) continue;
-    const x1 = s.x + NW / 2, y1 = s.y + NH;
-    const x2 = t.x + NW / 2, y2 = t.y;
-    const my = (y1 + y2) / 2;
-    parts.push(`<path d="M${x1} ${y1} C${x1} ${my},${x2} ${my},${x2} ${y2}" fill="none" stroke="var(--color-primary,#2563eb)" stroke-width="2" opacity="0.65"/>`);
-  }
-  for (const e of spouseEdges) {
-    const s = pos[e.source], t = pos[e.target];
-    if (!s || !t) continue;
-    // Route between the inside edges of the two boxes so the line doesn't
-    // cut through the rectangles. Same-row pairs land at vertical midline.
-    const sCx = s.x + NW / 2, tCx = t.x + NW / 2;
-    const cy = s.y + NH / 2;
-    const leftRight = sCx < tCx;
-    const x1 = leftRight ? s.x + NW : s.x;
-    const x2 = leftRight ? t.x : t.x + NW;
-    const y1 = cy, y2 = t.y + NH / 2;
-    parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#e91e8c" stroke-width="1.75" stroke-dasharray="6 3" opacity="0.75"/>`);
-  }
-  for (const n of nodes) {
-    const p = pos[n.id];
-    if (!p) continue;
-    const label = n.name.length > 16 ? n.name.slice(0, 14) + '…' : n.name;
-    parts.push(
-      `<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" rx="8" fill="var(--color-surface,#fff)" stroke="var(--color-border,#e2e8f0)" stroke-width="1.5"/>`,
-      `<text x="${p.x + NW / 2}" y="${p.y + NH / 2}" text-anchor="middle" dominant-baseline="central" font-size="13" font-family="inherit" fill="var(--color-text,#1e293b)">${escHtml(label)}</text>`,
-    );
-  }
-
-  const svgHtml = `<svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" style="display:block" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`;
-  const canvas = h("div", { class: "card", style: { overflowX: "auto", padding: "1.25rem" }, html: svgHtml });
-
-  const legend = h("div", { class: "tree-legend" },
-    h("span", { class: "tree-legend-item" },
-      h("span", { class: "tree-legend-line tree-line-parent" }),
-      " Parent / child",
-    ),
-    h("span", { class: "tree-legend-item" },
-      h("span", { class: "tree-legend-line tree-line-spouse" }),
-      " Spouse",
-    ),
-  );
-
   if (!edges.length) {
     app.replaceChildren(header,
       h("div", { class: "card" }, emptyState("users", "No relationships linked yet",
@@ -1039,7 +930,46 @@ pages.tree = async (app) => {
     );
     return;
   }
-  app.replaceChildren(header, canvas, legend);
+  if (typeof f3 === "undefined" || typeof d3 === "undefined") {
+    app.replaceChildren(header,
+      h("div", { class: "card" }, emptyState("alert", "Visualization library failed to load",
+        "Refresh the page. If it persists, check that /vendor/d3.min.js and /vendor/family-chart.js are reachable.")),
+    );
+    return;
+  }
+
+  const f3Data = buildFamilyChartData(nodes);
+  const chartHost = h("div", { id: "FamilyChart", class: "f3 family-chart-host" });
+  const helpRow = h("p", { class: "muted text-sm", style: { marginTop: "0.75rem" } },
+    "Click a card to re-center the tree on that person. Scroll to zoom, drag to pan.",
+  );
+
+  app.replaceChildren(header, chartHost, helpRow);
+
+  // Defer to next frame so the host has dimensions before f3 measures it
+  requestAnimationFrame(() => {
+    try {
+      const chart = f3.createChart("#FamilyChart", f3Data)
+        .setTransitionTime(700)
+        .setCardXSpacing(220)
+        .setCardYSpacing(140)
+        .setOrientationVertical()
+        .setSingleParentEmptyCard(false);
+
+      chart.setCard(f3.CardHtml)
+        .setCardDisplay([["first_name"], ["birthday"]])
+        .setCardDim({ w: 200, h: 70, text_x: 75, text_y: 15, img_w: 60, img_h: 60, img_x: 5, img_y: 5 })
+        .setMiniTree(true)
+        .setStyle("imageRect")
+        .setOnHoverPathToMain();
+
+      chart.updateTree({ initial: true });
+    } catch (err) {
+      console.error("family-chart failed:", err);
+      toast("Could not render tree — see console", "error");
+    }
+  });
+
 };
 
 // ── Init ────────────────────────────────────────────────────────────────────
