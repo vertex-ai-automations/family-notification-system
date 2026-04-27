@@ -15,6 +15,9 @@ class PersonCreate(BaseModel):
     custom_birthday_message: str = ""
     custom_anniversary_message: str = ""
     notifications_paused: bool = False
+    mother_id: Optional[int] = None
+    father_id: Optional[int] = None
+    spouse_id: Optional[int] = None
 
 class PersonUpdate(PersonCreate):
     pass
@@ -33,3 +36,6 @@ class PersonPartialUpdate(BaseModel):
     custom_birthday_message: Optional[str] = None
     custom_anniversary_message: Optional[str] = None
     notifications_paused: Optional[bool] = None
+    mother_id: Optional[int] = None
+    father_id: Optional[int] = None
+    spouse_id: Optional[int] = None

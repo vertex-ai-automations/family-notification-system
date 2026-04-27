@@ -27,6 +27,9 @@ def create_tables(conn: sqlite3.Connection):
         custom_birthday_message TEXT DEFAULT '',
         custom_anniversary_message TEXT DEFAULT '',
         notifications_paused BOOLEAN DEFAULT 0,
+        mother_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+        father_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+        spouse_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -57,8 +60,27 @@ def create_tables(conn: sqlite3.Connection):
     );
     CREATE INDEX IF NOT EXISTS idx_log_person_sent ON notification_log(person_id, sent_at DESC);
     CREATE INDEX IF NOT EXISTS idx_log_status ON notification_log(status);
+    CREATE INDEX IF NOT EXISTS idx_people_mother ON people(mother_id);
+    CREATE INDEX IF NOT EXISTS idx_people_father ON people(father_id);
+    CREATE INDEX IF NOT EXISTS idx_people_spouse ON people(spouse_id);
     """)
     conn.commit()
+
+
+def migrate(conn: sqlite3.Connection):
+    """Idempotent column-adders for existing databases.
+    SQLite ALTER TABLE … ADD COLUMN ignores REFERENCES at runtime, so we add as
+    plain INTEGER and rely on app-level enforcement. Indexes get created here
+    too (CREATE INDEX IF NOT EXISTS is idempotent)."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(people)").fetchall()}
+    for col in ("mother_id", "father_id", "spouse_id"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE people ADD COLUMN {col} INTEGER")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_people_mother ON people(mother_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_people_father ON people(father_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_people_spouse ON people(spouse_id)")
+    conn.commit()
+
 
 DEFAULTS = {
     "advance_days_week": "7",
@@ -83,5 +105,6 @@ def init_db(path: str = DB_PATH):
         os.makedirs(dir_name, exist_ok=True)
     conn = get_connection(path)
     create_tables(conn)
+    migrate(conn)
     seed_settings(conn)
     return conn
