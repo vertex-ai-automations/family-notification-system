@@ -60,9 +60,6 @@ def create_tables(conn: sqlite3.Connection):
     );
     CREATE INDEX IF NOT EXISTS idx_log_person_sent ON notification_log(person_id, sent_at DESC);
     CREATE INDEX IF NOT EXISTS idx_log_status ON notification_log(status);
-    CREATE INDEX IF NOT EXISTS idx_people_mother ON people(mother_id);
-    CREATE INDEX IF NOT EXISTS idx_people_father ON people(father_id);
-    CREATE INDEX IF NOT EXISTS idx_people_spouse ON people(spouse_id);
     """)
     conn.commit()
 
