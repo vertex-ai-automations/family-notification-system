@@ -7,11 +7,21 @@ from app.api.deps import get_db
 
 router = APIRouter(prefix="/api/members", tags=["members"])
 
+# Allowlist of columns the PATCH endpoint is permitted to update. Defends
+# against accidental future plumbing of unsanitised keys into the dynamic
+# UPDATE fragment builder.
+_PATCH_ALLOWED = frozenset({
+    "name", "phone", "email", "whatsapp", "birthday", "birth_year", "married",
+    "spouse_name", "anniversary", "anniversary_year",
+    "custom_birthday_message", "custom_anniversary_message",
+    "notifications_paused", "mother_id", "father_id", "spouse_id", "updated_at",
+})
+
 
 # --- Relationship helpers ---------------------------------------------------
 
 def _validate_relationship_ids(person_id: int | None, data: dict, db: sqlite3.Connection):
-    """Reject self-references and IDs that don't exist."""
+    """Reject self-references, dangling IDs, and parent-cycles."""
     for key in ("mother_id", "father_id", "spouse_id"):
         ref = data.get(key)
         if ref is None:
@@ -20,16 +30,43 @@ def _validate_relationship_ids(person_id: int | None, data: dict, db: sqlite3.Co
             raise HTTPException(400, f"{key} cannot reference the same person")
         if not db.execute("SELECT 1 FROM people WHERE id=?", (ref,)).fetchone():
             raise HTTPException(400, f"{key} references a non-existent person (id={ref})")
+    # Cycle check on parent links: walking up from the proposed parent must not
+    # reach person_id. Only relevant on update (person_id is known).
+    if person_id is None:
+        return
+    for key in ("mother_id", "father_id"):
+        ref = data.get(key)
+        if ref is None:
+            continue
+        cur = ref
+        seen = {person_id}
+        while cur is not None and cur not in seen:
+            seen.add(cur)
+            row = db.execute("SELECT mother_id, father_id FROM people WHERE id=?", (cur,)).fetchone()
+            if not row:
+                break
+            # Walk both lineages — any cycle reaching person_id is fatal
+            for parent_id in (row["mother_id"], row["father_id"]):
+                if parent_id == person_id:
+                    raise HTTPException(400, f"{key} would create a parent-cycle")
+                if parent_id is not None and parent_id not in seen:
+                    seen.add(parent_id)
+            # Continue up just one chain to bound runtime
+            cur = row["mother_id"] or row["father_id"]
 
 
 def _sync_spouse(db: sqlite3.Connection, person_id: int, new_spouse_id: int | None, old_spouse_id: int | None):
-    """Maintain mutual spouse_id pointers across the two rows.
-    - If the partner changed, clear the previous partner's pointer.
-    - Set the new partner's pointer to this person.
-    - Clearing both works automatically (new=None, old=value -> clear only old)."""
+    """Maintain mutual spouse_id pointers; preserve the bidirectional invariant.
+    - If person had an old partner, clear that partner's back-pointer.
+    - If the new partner already has a different partner, clear THAT third party
+      so no row is left pointing at someone whose spouse_id no longer matches.
+    - Then point new partner back at person."""
     if old_spouse_id and old_spouse_id != new_spouse_id:
         db.execute("UPDATE people SET spouse_id=NULL WHERE id=?", (old_spouse_id,))
     if new_spouse_id:
+        prev = db.execute("SELECT spouse_id FROM people WHERE id=?", (new_spouse_id,)).fetchone()
+        if prev and prev["spouse_id"] and prev["spouse_id"] != person_id:
+            db.execute("UPDATE people SET spouse_id=NULL WHERE id=?", (prev["spouse_id"],))
         db.execute("UPDATE people SET spouse_id=? WHERE id=?", (person_id, new_spouse_id))
 
 
@@ -43,7 +80,8 @@ def list_members(db: sqlite3.Connection = Depends(get_db)):
 
 @router.get("/upcoming")
 def upcoming_events(db: sqlite3.Connection = Depends(get_db)):
-    today = datetime.date.today()
+    from app.scheduler import today_local
+    today = today_local()
     people = [dict(r) for r in db.execute("SELECT * FROM people WHERE notifications_paused=0").fetchall()]
     events = []
     for p in people:
@@ -153,9 +191,10 @@ def patch_member(person_id: int, person: PersonPartialUpdate, db: sqlite3.Connec
     if not data:
         return dict(existing)
     data["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    fragments = ", ".join(f"{k}=:{k}" for k in data)
-    data["id"] = person_id
-    db.execute(f"UPDATE people SET {fragments} WHERE id=:id", data)
+    safe = {k: v for k, v in data.items() if k in _PATCH_ALLOWED}
+    fragments = ", ".join(f"{k}=:{k}" for k in safe)
+    safe["id"] = person_id
+    db.execute(f"UPDATE people SET {fragments} WHERE id=:id", safe)
     if spouse_changed:
         _sync_spouse(db, person_id, data.get("spouse_id"), existing["spouse_id"])
     db.commit()

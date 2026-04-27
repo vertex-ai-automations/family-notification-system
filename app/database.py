@@ -67,16 +67,17 @@ def create_tables(conn: sqlite3.Connection):
 def migrate(conn: sqlite3.Connection):
     """Idempotent column-adders for existing databases.
     SQLite ALTER TABLE … ADD COLUMN ignores REFERENCES at runtime, so we add as
-    plain INTEGER and rely on app-level enforcement. Indexes get created here
-    too (CREATE INDEX IF NOT EXISTS is idempotent)."""
+    plain INTEGER and rely on app-level enforcement. All ALTERs + index creates
+    run inside a single transaction so a power loss can't leave the schema
+    half-applied."""
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(people)").fetchall()}
-    for col in ("mother_id", "father_id", "spouse_id"):
-        if col not in cols:
-            conn.execute(f"ALTER TABLE people ADD COLUMN {col} INTEGER")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_people_mother ON people(mother_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_people_father ON people(father_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_people_spouse ON people(spouse_id)")
-    conn.commit()
+    with conn:  # commits on success, rolls back on exception
+        for col in ("mother_id", "father_id", "spouse_id"):
+            if col not in cols:
+                conn.execute(f"ALTER TABLE people ADD COLUMN {col} INTEGER")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_people_mother ON people(mother_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_people_father ON people(father_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_people_spouse ON people(spouse_id)")
 
 
 DEFAULTS = {

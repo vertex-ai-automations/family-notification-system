@@ -930,7 +930,15 @@ pages.tree = async (app) => {
   for (const e of spouseEdges) {
     const s = pos[e.source], t = pos[e.target];
     if (!s || !t) continue;
-    parts.push(`<line x1="${s.x + NW / 2}" y1="${s.y + NH / 2}" x2="${t.x + NW / 2}" y2="${t.y + NH / 2}" stroke="#e91e8c" stroke-width="1.75" stroke-dasharray="6 3" opacity="0.75"/>`);
+    // Route between the inside edges of the two boxes so the line doesn't
+    // cut through the rectangles. Same-row pairs land at vertical midline.
+    const sCx = s.x + NW / 2, tCx = t.x + NW / 2;
+    const cy = s.y + NH / 2;
+    const leftRight = sCx < tCx;
+    const x1 = leftRight ? s.x + NW : s.x;
+    const x2 = leftRight ? t.x : t.x + NW;
+    const y1 = cy, y2 = t.y + NH / 2;
+    parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#e91e8c" stroke-width="1.75" stroke-dasharray="6 3" opacity="0.75"/>`);
   }
   for (const n of nodes) {
     const p = pos[n.id];
@@ -956,11 +964,14 @@ pages.tree = async (app) => {
     ),
   );
 
-  app.replaceChildren(header, canvas, legend);
   if (!edges.length) {
-    app.append(h("p", { class: "muted text-sm", style: { padding: "0 0.25rem" } },
-      "No relationships linked yet — edit a member to set parent and spouse connections."));
+    app.replaceChildren(header,
+      h("div", { class: "card" }, emptyState("users", "No relationships linked yet",
+        "Edit a member to set their mother, father, or spouse — links will appear here.")),
+    );
+    return;
   }
+  app.replaceChildren(header, canvas, legend);
 };
 
 // ── Init ────────────────────────────────────────────────────────────────────
