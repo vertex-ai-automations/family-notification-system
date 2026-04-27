@@ -895,42 +895,94 @@ pages.tree = async (app) => {
   const parentEdges = edges.filter(e => e.relation === "parent");
   const spouseEdges = edges.filter(e => e.relation === "spouse");
 
-  // BFS generation assignment — roots are nodes with no incoming parent edge
   const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
-  const hasParent = new Set(parentEdges.map(e => e.target));
-  const roots = nodes.filter(n => !hasParent.has(n.id));
-  const gen = {};
-  roots.forEach(r => { gen[r.id] = 0; });
-  const queue = [...roots];
-  while (queue.length) {
-    const cur = queue.shift();
-    for (const e of parentEdges) {
-      if (e.source !== cur.id) continue;
-      if (gen[e.target] === undefined) {
-        gen[e.target] = (gen[cur.id] ?? 0) + 1;
-        if (byId[e.target]) queue.push(byId[e.target]);
-      }
+
+  // Pick a primary parent per node (mother first, else father). The layout
+  // tree is built from primary parents only; the secondary parent edge still
+  // gets drawn, it just doesn't drive positioning.
+  const primaryOf = (n) => {
+    if (n.mother_id && byId[n.mother_id]) return n.mother_id;
+    if (n.father_id && byId[n.father_id]) return n.father_id;
+    return null;
+  };
+
+  // Children grouped under their primary parent, ordered by other-parent then name
+  const childrenOf = {};
+  for (const n of nodes) {
+    const pid = primaryOf(n);
+    if (pid) (childrenOf[pid] ||= []).push(n);
+  }
+  for (const arr of Object.values(childrenOf)) {
+    arr.sort((a, b) => {
+      const aOther = (primaryOf(a) === a.mother_id) ? (a.father_id || 0) : (a.mother_id || 0);
+      const bOther = (primaryOf(b) === b.mother_id) ? (b.father_id || 0) : (b.mother_id || 0);
+      if (aOther !== bOther) return aOther - bOther;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  // Roots: nodes whose primary parent isn't in the data set
+  const roots = nodes.filter(n => primaryOf(n) === null).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Layout constants
+  const NW = 130, NH = 44, HGAP = 24, VGAP = 90, PAD = 24, FAMILY_GAP = 64;
+
+  // Memoized subtree width: max(NW, sum of child widths + gaps)
+  const widthCache = {};
+  const subtreeWidth = (node, visiting = new Set()) => {
+    if (widthCache[node.id] !== undefined) return widthCache[node.id];
+    if (visiting.has(node.id)) return NW;  // cycle guard
+    visiting.add(node.id);
+    const kids = childrenOf[node.id] || [];
+    let w = NW;
+    if (kids.length) {
+      const sum = kids.map(k => subtreeWidth(k, visiting)).reduce((a, b) => a + b, 0);
+      w = Math.max(NW, sum + HGAP * (kids.length - 1));
+    }
+    visiting.delete(node.id);
+    widthCache[node.id] = w;
+    return w;
+  };
+
+  // Place a subtree starting at leftX; return its rightX
+  const pos = {};
+  const placed = new Set();
+  const place = (node, leftX, gen) => {
+    if (placed.has(node.id)) return leftX;  // cycle / re-entry guard
+    placed.add(node.id);
+    const kids = childrenOf[node.id] || [];
+    const w = subtreeWidth(node);
+    const y = PAD + gen * (NH + VGAP);
+    if (!kids.length) {
+      pos[node.id] = { x: leftX + (w - NW) / 2, y };
+      return leftX + w;
+    }
+    let cursor = leftX;
+    for (const k of kids) {
+      const kw = subtreeWidth(k);
+      place(k, cursor, gen + 1);
+      cursor += kw + HGAP;
+    }
+    const childrenSpan = cursor - HGAP - leftX;
+    pos[node.id] = { x: leftX + childrenSpan / 2 - NW / 2, y };
+    return leftX + Math.max(w, childrenSpan);
+  };
+
+  let cursor = PAD;
+  for (const r of roots) {
+    cursor = place(r, cursor, 0) + FAMILY_GAP;
+  }
+
+  // Place orphans (visited via cycles or detached) as their own roots at gen 0
+  for (const n of nodes) {
+    if (!pos[n.id]) {
+      pos[n.id] = { x: cursor, y: PAD };
+      cursor += NW + HGAP;
     }
   }
-  nodes.forEach(n => { if (gen[n.id] === undefined) gen[n.id] = 0; });
 
-  const maxGen = Math.max(0, ...Object.values(gen));
-  const genRows = Array.from({ length: maxGen + 1 }, () => []);
-  nodes.forEach(n => genRows[gen[n.id]].push(n));
-
-  // Position — centre each generation row within the widest row
-  const NW = 130, NH = 44, HGAP = 28, VGAP = 80, PAD = 20;
-  const rowWidths = genRows.map(row => row.length * NW + Math.max(0, row.length - 1) * HGAP);
-  const totalW = Math.max(...rowWidths);
-  const pos = {};
-  genRows.forEach((row, g) => {
-    const startX = PAD + Math.max(0, (totalW - rowWidths[g]) / 2);
-    row.forEach((n, i) => {
-      pos[n.id] = { x: startX + i * (NW + HGAP), y: PAD + g * (NH + VGAP) };
-    });
-  });
-  const svgW = totalW + PAD * 2;
-  const svgH = PAD + (maxGen + 1) * (NH + VGAP);
+  const svgW = Math.max(...Object.values(pos).map(p => p.x + NW)) + PAD;
+  const svgH = Math.max(...Object.values(pos).map(p => p.y + NH)) + PAD;
 
   // Build SVG (user-supplied names are HTML-escaped)
   const parts = [];
