@@ -14,6 +14,7 @@ class Config:
     smtp_username: Optional[str]
     smtp_password: Optional[str]
     smtp_from_address: Optional[str]
+    family_name: str
 
 _config: Optional[Config] = None
 
@@ -36,4 +37,5 @@ def hot_reload():
         smtp_username=os.getenv("SMTP_USERNAME"),
         smtp_password=os.getenv("SMTP_PASSWORD"),
         smtp_from_address=os.getenv("SMTP_FROM_ADDRESS"),
+        family_name=(os.getenv("FAMILY_NAME") or "Family").strip() or "Family",
     )

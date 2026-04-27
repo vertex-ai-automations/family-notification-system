@@ -1,8 +1,14 @@
 import sqlite3
 from fastapi import APIRouter, Depends
 from app.api.deps import get_db
+from app.config import get_config
 
 router = APIRouter(tags=["health"])
+
+
+@router.get("/api/branding")
+def branding():
+    return {"family_name": get_config().family_name}
 
 
 @router.get("/health")

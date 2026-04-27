@@ -34,10 +34,10 @@ def test_sms_sends_to_phone():
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         svc = TwilioSMSService("AC123", "tok", "+10000000000")
-        result = svc.send({"name": "John", "phone": "+17188790062"}, "Happy Birthday!")
+        result = svc.send({"name": "John", "phone": "+15555550100"}, "Happy Birthday!")
         assert result is True
         call_kwargs = mock_client.messages.create.call_args.kwargs
-        assert call_kwargs["to"] == "+17188790062"
+        assert call_kwargs["to"] == "+15555550100"
 
 
 def test_sms_skips_person_with_no_phone():
@@ -52,7 +52,7 @@ def test_sms_returns_false_on_twilio_error():
         mock_client.messages.create.side_effect = Exception("Twilio error")
         mock_client_cls.return_value = mock_client
         svc = TwilioSMSService("AC123", "tok", "+10000000000")
-        assert svc.send({"name": "John", "phone": "+17188790062"}, "msg") is False
+        assert svc.send({"name": "John", "phone": "+15555550100"}, "msg") is False
 
 
 # --- Task 8: Twilio WhatsApp ---
@@ -65,9 +65,9 @@ def test_whatsapp_uses_whatsapp_field_when_set():
         mock_client = MagicMock()
         mock_cls.return_value = mock_client
         svc = TwilioWhatsAppService("AC123", "tok", "whatsapp:+14155238886")
-        svc.send({"name": "John", "phone": "+17188790062", "whatsapp": "+19998887777"}, "msg")
+        svc.send({"name": "John", "phone": "+15555550100", "whatsapp": "+15555550199"}, "msg")
         call_kwargs = mock_client.messages.create.call_args.kwargs
-        assert call_kwargs["to"] == "whatsapp:+19998887777"
+        assert call_kwargs["to"] == "whatsapp:+15555550199"
 
 
 def test_whatsapp_skips_when_only_phone_set():
@@ -77,7 +77,7 @@ def test_whatsapp_skips_when_only_phone_set():
         mock_client = MagicMock()
         mock_cls.return_value = mock_client
         svc = TwilioWhatsAppService("AC123", "tok", "whatsapp:+14155238886")
-        result = svc.send({"name": "John", "phone": "+17188790062", "whatsapp": None}, "msg")
+        result = svc.send({"name": "John", "phone": "+15555550100", "whatsapp": None}, "msg")
         assert result is True
         assert svc.last_skip is True
         mock_client.messages.create.assert_not_called()

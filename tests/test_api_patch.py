@@ -13,15 +13,15 @@ def test_patch_normalizes_phone(client):
 
 
 def test_patch_whatsapp_equals_existing_phone_dedups(client):
-    # John's existing phone is +17188790062 (from conftest)
+    # John's existing phone is +15555550100 (from conftest)
     # PATCH whatsapp to the same number — should be stored as NULL
-    r = client.patch("/api/members/1", json={"whatsapp": "7188790062"})
+    r = client.patch("/api/members/1", json={"whatsapp": "5555550100"})
     assert r.json()["whatsapp"] is None
 
 
 def test_patch_whatsapp_different_kept(client):
-    r = client.patch("/api/members/1", json={"whatsapp": "9998887777"})
-    assert r.json()["whatsapp"] == "+19998887777"
+    r = client.patch("/api/members/1", json={"whatsapp": "5555550199"})
+    assert r.json()["whatsapp"] == "+15555550199"
 
 
 def test_patch_nonexistent_returns_404(client):

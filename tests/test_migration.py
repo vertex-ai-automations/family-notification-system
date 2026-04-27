@@ -6,7 +6,7 @@ SAMPLE = {
     "people": {
         "1": {
             "name": "John Doe",
-            "phone": "7188790062",
+            "phone": "5555550100",
             "birthday": "01-28",
             "birthday_notification": {"notified_week_before": True, "notified_day_before": False},
             "married": True,
@@ -29,7 +29,7 @@ def test_import_creates_person():
     assert result["imported"] == 1
     row = db.execute("SELECT * FROM people WHERE name='John Doe'").fetchone()
     assert row is not None
-    assert row["phone"] == "+17188790062"
+    assert row["phone"] == "+15555550100"
 
 def test_import_writes_state_for_true_flags():
     db = make_db()

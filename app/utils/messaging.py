@@ -3,9 +3,9 @@ import re
 from typing import Optional
 
 DEFAULTS = {
-    ("birthday", "advance", False):    "NoorFamily Reminder: {name}'s birthday is in {days} day(s)! Don't forget to wish them!",
+    ("birthday", "advance", False):    "Reminder: {name}'s birthday is in {days} day(s)! Don't forget to wish them!",
     ("birthday", "same_day", True):    "Happy Birthday, {name}! Wishing you joy and happiness today!",
-    ("anniversary", "advance", False): "NoorFamily Reminder: {name} & {spouse}'s anniversary is in {days} day(s)!",
+    ("anniversary", "advance", False): "Reminder: {name} & {spouse}'s anniversary is in {days} day(s)!",
     ("anniversary", "same_day", True): "Happy Anniversary, {name} & {spouse}! Wishing you many more years of happiness together!",
 }
 

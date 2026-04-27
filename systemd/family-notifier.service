@@ -1,12 +1,16 @@
 [Unit]
-Description=NoorFamily Notification System
+Description=Family Notification System
 After=network.target
 
 [Service]
 Type=simple
-User=hassan
-WorkingDirectory=/home/hassan/family-notification-system
-ExecStart=/home/hassan/family-notification-system/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+# Replace these placeholders before installing:
+#   __USER__       — the OS user the service runs as (e.g. "pi" or "hassan")
+#   __APP_DIR__    — absolute path to this repo (e.g. "/home/pi/family-notification-system")
+#   __PORT__       — TCP port for the dashboard (default 8001)
+User=__USER__
+WorkingDirectory=__APP_DIR__
+ExecStart=__APP_DIR__/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port __PORT__
 Restart=on-failure
 RestartSec=5
 

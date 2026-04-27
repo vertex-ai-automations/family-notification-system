@@ -10,11 +10,11 @@ def test_list_members_empty(client):
     assert len(r.json()) == 1
 
 def test_create_member(client):
-    r = client.post("/api/members", json={"name": "Jane", "birthday": "06-15", "phone": "2144047340"})
+    r = client.post("/api/members", json={"name": "Jane", "birthday": "06-15", "phone": "5555550101"})
     assert r.status_code == 201
     data = r.json()
     assert data["name"] == "Jane"
-    assert data["phone"] == "+12144047340"
+    assert data["phone"] == "+15555550101"
 
 def test_update_member(client):
     # John already exists with id=1
@@ -48,5 +48,5 @@ def test_upcoming_events(client):
     assert "Soon Birthday" in names
 
 def test_phone_normalization_on_create(client):
-    r = client.post("/api/members", json={"name": "Bob", "birthday": "04-01", "phone": "(718) 879-0062"})
-    assert r.json()["phone"] == "+17188790062"
+    r = client.post("/api/members", json={"name": "Bob", "birthday": "04-01", "phone": "(555) 555-0100"})
+    assert r.json()["phone"] == "+15555550100"

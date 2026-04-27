@@ -1,3 +1,4 @@
+from app.config import get_config
 from app.services.email_smtp import _build_subject
 
 
@@ -23,7 +24,8 @@ def test_anniversary_advance_subject():
 
 
 def test_unknown_event_falls_back():
-    assert _build_subject({"name": "X"}, "graduation", "same_day", 0) == "NoorFamily Notification"
+    expected = f"{get_config().family_name} Notification"
+    assert _build_subject({"name": "X"}, "graduation", "same_day", 0) == expected
 
 
 def test_no_name_uses_family_fallback():

@@ -25,7 +25,7 @@ pytest -k "advance" -v                # by keyword
 
 ## Architecture
 
-**Single FastAPI process** that serves the REST API, the static dashboard (`app/static/`), and runs the APScheduler in-process via the FastAPI lifespan. SQLite (`data/family.db`) is the single source of truth. Deployed on a Raspberry Pi via the systemd unit in `systemd/`.
+**Single FastAPI process** that serves the REST API, the static dashboard (`app/static/`), and runs the APScheduler in-process via the FastAPI lifespan. SQLite (`data/family.db`) is the single source of truth. Deployed on a Raspberry Pi via the systemd unit template in `systemd/family-notifier.service` (placeholders `__USER__` / `__APP_DIR__` / `__PORT__` are substituted by `install.sh`). Default prod port is **8001**; dev examples below use 8000 just so they don't clash with a running prod instance on the same host.
 
 ### Wiring (read this before changing startup behavior)
 
@@ -86,6 +86,6 @@ All phones stored as E.164 (`+1XXXXXXXXXX`). 10-digit input gets `+1` prepended;
 
 When testing scheduler logic, build services manually and call `setup_scheduler([...], db_path)` or invoke `run_advance_reminders` / `run_day_of_wishes` directly after monkeypatching `_services` / `_db_path`.
 
-## Design docs
+## Branding
 
-The full design spec is in `docs/superpowers/specs/2026-04-26-family-notification-system-design.md` — consult it for data-model rationale, the JSON export schema, and migration rules before changing schemas or plugin contracts.
+`FAMILY_NAME` in `.env` (read via `app.config.get_config().family_name`, default `"Family"`) is exposed at `GET /api/branding` and applied at runtime by `app/static/app.js` — it sets the document title, sidebar/topbar brand text, and logo `alt`. The email subject fallback in `app.services.email_smtp._build_subject` also uses it. Treat it as a deploy-time setting (changes require a process restart for the SMTP path; the dashboard re-fetches branding on every page load).

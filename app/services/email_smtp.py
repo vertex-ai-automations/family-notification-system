@@ -1,6 +1,7 @@
 import logging
 import smtplib
 from email.mime.text import MIMEText
+from app.config import get_config
 from app.services.base import NotificationService
 from app.utils.retry import with_retry
 
@@ -19,7 +20,7 @@ def _build_subject(person: dict, event_type: str, trigger_type: str, days: int) 
         if trigger_type == "same_day":
             return f"Happy Anniversary,{suffix}!"
         return f"Reminder:{suffix}'s anniversary in {days} day(s)"
-    return "NoorFamily Notification"
+    return f"{get_config().family_name} Notification"
 
 
 class EmailService(NotificationService):

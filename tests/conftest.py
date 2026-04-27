@@ -10,7 +10,7 @@ def db():
     conn = get_connection(":memory:")
     create_tables(conn)
     seed_settings(conn)
-    conn.execute("INSERT INTO people (name, phone, email, birthday) VALUES ('John', '+17188790062', 'john@test.com', '01-28')")
+    conn.execute("INSERT INTO people (name, phone, email, birthday) VALUES ('John', '+15555550100', 'john@test.com', '01-28')")
     conn.commit()
     yield conn
     conn.close()
@@ -22,7 +22,7 @@ def client(tmp_path):
     conn = get_connection(db_path)
     create_tables(conn)
     seed_settings(conn)
-    conn.execute("INSERT INTO people (name, phone, email, birthday) VALUES ('John', '+17188790062', 'john@test.com', '01-28')")
+    conn.execute("INSERT INTO people (name, phone, email, birthday) VALUES ('John', '+15555550100', 'john@test.com', '01-28')")
     conn.commit()
     conn.close()
     from app.main import create_app

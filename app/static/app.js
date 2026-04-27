@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   NoorFamily Dashboard — vanilla JS, zero build
+   Family Notifications Dashboard — vanilla JS, zero build
    Design system: Minimalism + Micro-interactions
    ───────────────────────────────────────────────────────────────────────── */
 
@@ -1033,5 +1033,19 @@ buildNav();
 // Mobile drawer
 $("#menu-btn").addEventListener("click", openSidebar);
 $("#sidebar-scrim").addEventListener("click", closeSidebar);
+
+// Apply branding from server (FAMILY_NAME env var)
+(async function applyBranding() {
+  try {
+    const data = await api("GET", "/branding");
+    const name = (data && data.family_name) || "Family";
+    document.title = `${name} Notifications`;
+    const meta = document.querySelector('meta[name="description"]');
+    if (meta) meta.setAttribute("content", `${name} — birthday and anniversary notifications for your family`);
+    const topbar = document.querySelector(".topbar-brand");
+    if (topbar) topbar.textContent = name;
+    document.querySelectorAll('img[alt="Family Notifications"]').forEach(el => el.setAttribute("alt", name));
+  } catch {}
+})();
 
 navigate("members");
