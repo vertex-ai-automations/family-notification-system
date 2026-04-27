@@ -1,328 +1,825 @@
-// ── Router ───────────────────────────────────────────────────────────────────
-const pages = {};
-function registerPage(name, fn) { pages[name] = fn; }
+/* ─────────────────────────────────────────────────────────────────────────
+   NoorFamily Dashboard — vanilla JS, zero build
+   Design system: Minimalism + Micro-interactions
+   ───────────────────────────────────────────────────────────────────────── */
 
-document.querySelectorAll(".sidebar a").forEach(a => {
-  a.addEventListener("click", e => {
-    e.preventDefault();
-    document.querySelectorAll(".sidebar a").forEach(x => x.classList.remove("active"));
-    a.classList.add("active");
-    navigate(a.dataset.page);
-  });
-});
+// ── DOM helpers — h() builds elements via API (textContent, never innerHTML),
+//                  so user data can never become HTML. Kills the XSS class.
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === false || v == null) continue;
+      if (k === "class") el.className = v;
+      else if (k === "html") el.innerHTML = v; // explicit opt-in for SAFE static HTML
+      else if (k === "dataset") Object.assign(el.dataset, v);
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else el.setAttribute(k, v);
+    }
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    if (c instanceof Node) el.appendChild(c);
+    else el.appendChild(document.createTextNode(String(c)));
+  }
+  return el;
+}
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-function navigate(page) {
-  document.getElementById("app").innerHTML = "";
-  if (pages[page]) pages[page]();
+// ── Icon set (Lucide) — inline SVG paths, no network ───────────────────────
+const ICONS = {
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  settings: '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+  play: '<polygon points="5 3 19 12 5 21 5 3"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+  refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+};
+function icon(name, attrs = {}) {
+  const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ""}</svg>`;
+  return h("span", { html: svg, class: "icon", ...attrs });
 }
 
-// ── API helpers ───────────────────────────────────────────────────────────────
+// ── Toast component ─────────────────────────────────────────────────────────
+const TOAST_ICONS = { success: "check", error: "alert", warn: "alert", info: "info" };
+function toast(message, kind = "info", timeout = 4000) {
+  const region = $("#toast-region");
+  const node = h("div",
+    { class: `toast toast-${kind}`, role: kind === "error" ? "alert" : "status" },
+    h("span", { class: "toast-icon", html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[TOAST_ICONS[kind] || "info"]}</svg>` }),
+    h("div", { class: "toast-body" }, message),
+    h("button", {
+      class: "toast-close",
+      "aria-label": "Dismiss",
+      onclick: () => dismiss(),
+      html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS.x}</svg>`,
+    }),
+  );
+  region.appendChild(node);
+  let timer = setTimeout(dismiss, timeout);
+  function dismiss() {
+    clearTimeout(timer);
+    node.classList.add("dismissing");
+    setTimeout(() => node.remove(), 250);
+  }
+  return dismiss;
+}
+
+// ── Modal with focus trap + Escape + scrim click ────────────────────────────
+let _modalRestore = null;
+function openModal({ title, body, actions = [] }) {
+  closeModal();
+  _modalRestore = document.activeElement;
+
+  const closeBtn = h("button", {
+    class: "icon-btn",
+    "aria-label": "Close dialog",
+    onclick: closeModal,
+    html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS.x}</svg>`,
+  });
+
+  const titleEl = h("h2", { class: "modal-title", id: "modal-title" }, title || "");
+  const bodyEl = h("div", { class: "modal-body" });
+  if (body instanceof Node) bodyEl.appendChild(body);
+  else if (typeof body === "string") bodyEl.appendChild(document.createTextNode(body));
+
+  const actionsEl = actions.length ? h("div", { class: "modal-actions" }, ...actions) : null;
+
+  const modalCard = h("div", {
+    class: "modal",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "modal-title",
+  },
+    h("div", { class: "modal-header" }, titleEl, closeBtn),
+    bodyEl,
+    actionsEl,
+  );
+
+  const backdrop = h("div", {
+    class: "modal-backdrop",
+    onclick: e => { if (e.target === backdrop) closeModal(); },
+  }, modalCard);
+  backdrop.id = "modal-backdrop";
+
+  document.body.appendChild(backdrop);
+  document.body.style.overflow = "hidden";
+
+  // Focus trap
+  const focusables = () => $$('input, select, textarea, button, [tabindex]:not([tabindex="-1"])', modalCard)
+    .filter(el => !el.disabled && !el.hidden);
+  const f = focusables();
+  (f[0] || closeBtn).focus();
+
+  modalCard.addEventListener("keydown", e => {
+    if (e.key === "Escape") { e.preventDefault(); closeModal(); return; }
+    if (e.key !== "Tab") return;
+    const list = focusables();
+    if (!list.length) return;
+    const first = list[0], last = list[list.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  return { close: closeModal };
+}
+function closeModal() {
+  const b = $("#modal-backdrop");
+  if (b) b.remove();
+  document.body.style.overflow = "";
+  if (_modalRestore && _modalRestore.focus) { _modalRestore.focus(); _modalRestore = null; }
+}
+
+// ── Confirm async — promise-based replacement for window.confirm() ──────────
+function confirmAsync(message, { confirmText = "Confirm", danger = false } = {}) {
+  return new Promise(resolve => {
+    const cancelBtn = h("button", { class: "btn btn-ghost", onclick: () => { closeModal(); resolve(false); } }, "Cancel");
+    const okBtn = h("button", {
+      class: `btn ${danger ? "btn-danger" : "btn-primary"}`,
+      onclick: () => { closeModal(); resolve(true); },
+    }, confirmText);
+    openModal({
+      title: "Confirm",
+      body: h("p", null, message),
+      actions: [cancelBtn, okBtn],
+    });
+  });
+}
+
+// ── Button loading state ────────────────────────────────────────────────────
+async function withBusy(btn, fn) {
+  if (!btn) return await fn();
+  const prevHTML = btn.innerHTML;
+  const prevDisabled = btn.disabled;
+  btn.setAttribute("aria-busy", "true");
+  btn.disabled = true;
+  btn.innerHTML = "";
+  btn.appendChild(h("span", { class: "spinner", "aria-hidden": "true" }));
+  btn.appendChild(document.createTextNode(" Working…"));
+  try {
+    return await fn();
+  } finally {
+    btn.removeAttribute("aria-busy");
+    btn.disabled = prevDisabled;
+    btn.innerHTML = prevHTML;
+  }
+}
+
+// ── API helper ──────────────────────────────────────────────────────────────
 async function api(method, path, body) {
   const opts = { method, headers: { "Content-Type": "application/json" } };
   if (body !== undefined) opts.body = JSON.stringify(body);
-  const r = await fetch("/api" + path, opts);
-  if (!r.ok) { alert("Error " + r.status + ": " + await r.text()); return null; }
-  if (r.status === 204) return null;
-  return r.json();
+  try {
+    const r = await fetch("/api" + path, opts);
+    if (!r.ok) {
+      let detail = await r.text();
+      try { detail = JSON.parse(detail).detail || detail; } catch {}
+      toast(`${r.status}: ${detail}`, "error", 6000);
+      return null;
+    }
+    if (r.status === 204) return true;
+    return await r.json();
+  } catch (e) {
+    toast(`Network error: ${e.message}`, "error");
+    return null;
+  }
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
-function showModal(html) {
-  document.getElementById("modal-box").innerHTML = html;
-  document.getElementById("modal-overlay").classList.remove("hidden");
+// ── Theme toggle ────────────────────────────────────────────────────────────
+function readTheme() { return localStorage.getItem("nf-theme"); }
+function setTheme(mode) {
+  if (mode) { document.documentElement.setAttribute("data-theme", mode); localStorage.setItem("nf-theme", mode); }
+  else { document.documentElement.removeAttribute("data-theme"); localStorage.removeItem("nf-theme"); }
+  paintThemeToggle();
 }
-function closeModal() { document.getElementById("modal-overlay").classList.add("hidden"); }
-document.getElementById("modal-overlay").addEventListener("click", e => {
-  if (e.target.id === "modal-overlay") closeModal();
-});
+function paintThemeToggle() {
+  const btn = $("#theme-toggle"); if (!btn) return;
+  const dark = document.documentElement.getAttribute("data-theme") === "dark"
+    || (!document.documentElement.getAttribute("data-theme")
+        && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${dark ? ICONS.sun : ICONS.moon}</svg>`;
+}
 
-// ── Channel badges ────────────────────────────────────────────────────────────
+// ── Channel badges ──────────────────────────────────────────────────────────
 function chBadges(m) {
-  return `<span class="ch ${m.phone ? "ch-on" : "ch-off"}">SMS</span>`
-       + `<span class="ch ${(m.whatsapp || m.phone) ? "ch-on" : "ch-off"}">WA</span>`
-       + `<span class="ch ${m.email ? "ch-on" : "ch-off"}">Email</span>`;
+  const set = h("span", { class: "channel-set" });
+  set.appendChild(h("span", { class: `ch ${m.phone ? "ch-on" : "ch-off"}`, title: m.phone || "no phone" }, "SMS"));
+  set.appendChild(h("span", { class: `ch ${m.whatsapp ? "ch-on" : "ch-off"}`, title: m.whatsapp || "no WhatsApp" }, "WA"));
+  set.appendChild(h("span", { class: `ch ${m.email ? "ch-on" : "ch-off"}`, title: m.email || "no email" }, "Email"));
+  return set;
 }
 
-// ── Members page ──────────────────────────────────────────────────────────────
-registerPage("members", async () => {
+function fmtDays(n) {
+  if (n === 0) return "Today";
+  if (n === 1) return "Tomorrow";
+  return `${n}d`;
+}
+function pillClassFor(n) { return n === 0 ? "today" : n <= 7 ? "soon" : ""; }
+
+// ── Empty state ─────────────────────────────────────────────────────────────
+function emptyState(iconName, title, sub) {
+  return h("div", { class: "empty" },
+    h("span", { html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:40px;height:40px;display:block;margin:0 auto 12px">${ICONS[iconName]}</svg>` }),
+    h("h3", null, title),
+    h("p", null, sub),
+  );
+}
+
+// ── Router ──────────────────────────────────────────────────────────────────
+const NAV = [
+  { id: "members",       label: "Members",       icon: "users" },
+  { id: "notifications", label: "Notifications", icon: "bell" },
+  { id: "logs",          label: "Logs",          icon: "list" },
+  { id: "schedule",      label: "Schedule",      icon: "clock" },
+  { id: "settings",      label: "Settings",      icon: "settings" },
+];
+const pages = {};
+function navigate(name) {
+  const app = $("#app");
+  app.replaceChildren();
+  $$("#nav-list a").forEach(a => a.classList.toggle("active", a.dataset.page === name));
+  closeSidebar();
+  if (pages[name]) pages[name](app);
+  app.focus();
+}
+function openSidebar() { $("#sidebar").classList.add("open"); $("#sidebar-scrim").classList.add("open"); }
+function closeSidebar() { $("#sidebar").classList.remove("open"); $("#sidebar-scrim").classList.remove("open"); }
+
+// ── Members ─────────────────────────────────────────────────────────────────
+function nextEventDays(m) {
+  const today = new Date();
+  const targets = [];
+  if (m.birthday) targets.push({ type: "birthday", date: m.birthday });
+  if (m.married && m.anniversary) targets.push({ type: "anniversary", date: m.anniversary });
+  let best = null;
+  for (const ev of targets) {
+    const [mon, day] = ev.date.split("-").map(Number);
+    let d = new Date(today.getFullYear(), mon - 1, day);
+    if (d < new Date(today.getFullYear(), today.getMonth(), today.getDate())) d.setFullYear(today.getFullYear() + 1);
+    const days = Math.round((d - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
+    if (best == null || days < best.days) best = { ...ev, days };
+  }
+  return best;
+}
+
+pages.members = async (app) => {
   const [members, upcoming] = await Promise.all([api("GET", "/members"), api("GET", "/members/upcoming")]);
-  if (!members) return;
-  const app = document.getElementById("app");
-  app.innerHTML = `
-    <div class="action-bar"><h2>Family Members</h2><button class="btn btn-primary" id="add-btn">+ Add Member</button></div>
-    <table>
-      <thead><tr><th>Name</th><th>Birthday</th><th>Anniversary</th><th>Channels</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${members.map(m => `<tr>
-        <td><strong>${m.name}</strong></td>
-        <td>${m.birthday || "—"}</td>
-        <td>${m.married && m.anniversary ? m.anniversary : "—"}</td>
-        <td>${chBadges(m)}</td>
-        <td>${m.notifications_paused ? '<span class="badge badge-paused">Paused</span>' : ""}</td>
-        <td style="display:flex;gap:6px">
-          <button class="btn btn-sm btn-primary edit-btn" data-id="${m.id}">Edit</button>
-          <button class="btn btn-sm btn-danger del-btn" data-id="${m.id}">Delete</button>
-          <button class="btn btn-sm ${m.notifications_paused ? "btn-success" : ""}" style="${m.notifications_paused ? "" : "background:#f59e0b;color:#fff"}" data-id="${m.id}" data-paused="${m.notifications_paused}" class="pause-btn">
-            ${m.notifications_paused ? "Resume" : "Pause"}
-          </button>
-        </td>
-      </tr>`).join("")}</tbody>
-    </table>
-    <div class="card" style="margin-top:24px">
-      <h3>Upcoming Events (next 30 days)</h3>
-      ${upcoming && upcoming.length ? upcoming.map(e => `
-        <div class="upcoming-item">
-          <span><strong>${e.name}</strong> — ${e.event_type}</span>
-          <span class="days-pill ${e.days_away === 0 ? "today" : ""}">
-            ${e.days_away === 0 ? "TODAY" : `in ${e.days_away}d`} · ${e.date}
-          </span>
-        </div>`).join("") : '<p class="empty-msg">No upcoming events in the next 30 days</p>'}
-    </div>`;
+  if (members === null) return;
 
-  document.getElementById("add-btn").onclick = () => showMemberForm(null, members);
-  document.querySelectorAll(".edit-btn").forEach(b => b.onclick = () => showMemberForm(members.find(m => m.id == b.dataset.id), members));
-  document.querySelectorAll(".del-btn").forEach(b => b.onclick = async () => {
-    if (confirm("Delete this member?")) { await api("DELETE", `/members/${b.dataset.id}`); navigate("members"); }
-  });
-  document.querySelectorAll("[data-paused]").forEach(b => b.onclick = async () => {
-    const paused = b.dataset.paused == "1" || b.dataset.paused === "true";
-    await api("PUT", `/members/${b.dataset.id}/pause`, { paused: !paused });
-    navigate("members");
-  });
-});
+  const search = h("input", { type: "search", placeholder: "Search members…", "aria-label": "Search members" });
+  const tableBody = h("tbody");
+  const tableWrap = h("div", { class: "table-wrap" },
+    h("table", null,
+      h("thead", null,
+        h("tr", null,
+          h("th", null, "Name"),
+          h("th", null, "Birthday"),
+          h("th", null, "Anniversary"),
+          h("th", null, "Channels"),
+          h("th", null, "Next"),
+          h("th", null, "Status"),
+          h("th", null, "Actions"),
+        ),
+      ),
+      tableBody,
+    ),
+  );
 
-function showMemberForm(m, _members) {
+  function renderRows(filter = "") {
+    tableBody.replaceChildren();
+    const f = filter.trim().toLowerCase();
+    const filtered = members.filter(m => !f || m.name.toLowerCase().includes(f));
+    if (!filtered.length) {
+      tableBody.appendChild(h("tr", null,
+        h("td", { colspan: 7 }, emptyState("users", "No matches", "Try a different search")),
+      ));
+      return;
+    }
+    for (const m of filtered) {
+      const next = nextEventDays(m);
+      tableBody.appendChild(h("tr", null,
+        h("td", null, h("strong", null, m.name)),
+        h("td", null, m.birthday || "—"),
+        h("td", null, m.married && m.anniversary ? m.anniversary : "—"),
+        h("td", null, chBadges(m)),
+        h("td", null, next ? h("span", { class: `days-pill ${pillClassFor(next.days)}` }, `${fmtDays(next.days)} · ${next.type}`) : "—"),
+        h("td", null, m.notifications_paused ? h("span", { class: "badge badge-paused" }, "Paused") : ""),
+        h("td", null, h("div", { class: "row-actions" },
+          h("button", {
+            class: "btn btn-sm btn-ghost",
+            "aria-label": `Edit ${m.name}`,
+            onclick: () => showMemberForm(m, members),
+          }, icon("edit"), "Edit"),
+          h("button", {
+            class: m.notifications_paused ? "btn btn-sm btn-success" : "btn btn-sm btn-warn",
+            onclick: async (e) => {
+              await withBusy(e.currentTarget, async () => {
+                const r = await api("PUT", `/members/${m.id}/pause`, { paused: !m.notifications_paused });
+                if (r) { toast(m.notifications_paused ? "Resumed" : "Paused", "success"); navigate("members"); }
+              });
+            },
+          }, icon(m.notifications_paused ? "play" : "pause"), m.notifications_paused ? "Resume" : "Pause"),
+          h("button", {
+            class: "btn btn-sm btn-danger",
+            "aria-label": `Delete ${m.name}`,
+            onclick: async (e) => {
+              if (!await confirmAsync(`Delete ${m.name}? This also removes their notification logs.`, { confirmText: "Delete", danger: true })) return;
+              await withBusy(e.currentTarget, async () => {
+                const r = await api("DELETE", `/members/${m.id}`);
+                if (r) { toast(`${m.name} deleted`, "success"); navigate("members"); }
+              });
+            },
+          }, icon("trash"), "Delete"),
+        )),
+      ));
+    }
+  }
+
+  search.addEventListener("input", () => renderRows(search.value));
+  renderRows();
+
+  const upcomingCard = h("div", { class: "card" },
+    h("h2", { class: "section-title" }, "Upcoming events (next 30 days)"),
+    upcoming && upcoming.length
+      ? h("div", { class: "upcoming-list" }, ...upcoming.map(e =>
+          h("div", { class: "upcoming-item" },
+            h("div", null,
+              h("span", { class: "upcoming-name" }, e.name),
+              h("span", { class: "upcoming-event" }, `· ${e.event_type}`),
+            ),
+            h("span", { class: `days-pill ${pillClassFor(e.days_away)}` }, `${fmtDays(e.days_away)} · ${e.date}`),
+          )
+        ))
+      : emptyState("inbox", "Nothing coming up", "No birthdays or anniversaries in the next 30 days"),
+  );
+
+  app.append(
+    h("div", { class: "page-header" },
+      h("h1", { class: "page-title" }, "Family Members"),
+      h("button", {
+        class: "btn btn-primary",
+        onclick: () => showMemberForm(null, members),
+      }, icon("plus"), "Add Member"),
+    ),
+    h("div", { class: "action-bar" },
+      h("div", { class: "search-input" },
+        h("span", { html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS.search}</svg>` }),
+        search,
+      ),
+      h("span", { class: "muted text-sm" }, `${members.length} ${members.length === 1 ? "member" : "members"}`),
+    ),
+    tableWrap,
+    upcomingCard,
+  );
+};
+
+function showMemberForm(m, members) {
   m = m || {};
-  showModal(`<h3>${m.id ? "Edit" : "Add"} Member</h3>
-  <form id="mf">
-    <div class="form-row">
-      <div><label>Name *</label><input name="name" value="${esc(m.name)}" required></div>
-      <div><label>Birthday (MM-DD) *</label><input name="birthday" value="${esc(m.birthday)}" placeholder="01-28" required></div>
-    </div>
-    <div class="form-row">
-      <div><label>Phone</label><input name="phone" value="${esc(m.phone)}"></div>
-      <div><label>Email</label><input type="email" name="email" value="${esc(m.email)}"></div>
-    </div>
-    <div class="form-row">
-      <div><label>WhatsApp (if different from phone)</label><input name="whatsapp" value="${esc(m.whatsapp)}"></div>
-      <div><label>Birth Year (for age)</label><input type="number" name="birth_year" value="${m.birth_year || ""}"></div>
-    </div>
-    <label class="check-label"><input type="checkbox" name="married" ${m.married ? "checked" : ""}> Married</label>
-    <div id="mf-married" style="${m.married ? "" : "display:none"}">
-      <div class="form-row">
-        <div><label>Spouse Name</label><input name="spouse_name" value="${esc(m.spouse_name)}"></div>
-        <div><label>Anniversary (MM-DD)</label><input name="anniversary" value="${esc(m.anniversary)}"></div>
-      </div>
-      <div><label>Anniversary Year</label><input type="number" name="anniversary_year" value="${m.anniversary_year || ""}"></div>
-    </div>
-    <label>Custom Birthday Message <small style="color:#9ca3af">(supports {name}, {age}, {days})</small></label>
-    <textarea name="custom_birthday_message">${esc(m.custom_birthday_message)}</textarea>
-    <label>Custom Anniversary Message</label>
-    <textarea name="custom_anniversary_message">${esc(m.custom_anniversary_message)}</textarea>
-    <label class="check-label"><input type="checkbox" name="notifications_paused" ${m.notifications_paused ? "checked" : ""}> Pause notifications</label>
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button type="submit" class="btn btn-primary">${m.id ? "Update" : "Add"}</button>
-      <button type="button" class="btn" onclick="closeModal()">Cancel</button>
-    </div>
-  </form>`);
+  const fields = {};
+  function field(name, label, props = {}) {
+    const input = h("input", { name, value: m[name] != null ? m[name] : "", ...props });
+    fields[name] = input;
+    return h("div", { class: "field" }, h("label", null, label), input);
+  }
+  function textareaField(name, label, sub) {
+    const input = h("textarea", { name }, m[name] || "");
+    fields[name] = input;
+    return h("div", { class: "field" },
+      h("label", null, label),
+      input,
+      sub ? h("div", { class: "field-help" }, sub) : null,
+    );
+  }
+  const marriedCheck = h("input", { type: "checkbox", checked: !!m.married });
+  const pausedCheck = h("input", { type: "checkbox", checked: !!m.notifications_paused });
+  const annSection = h("div", null,
+    h("div", { class: "form-row" },
+      field("spouse_name", "Spouse Name"),
+      field("anniversary", "Anniversary (MM-DD)", { placeholder: "03-11" }),
+    ),
+    field("anniversary_year", "Anniversary Year (optional)", { type: "number" }),
+  );
+  if (!m.married) annSection.style.display = "none";
+  marriedCheck.addEventListener("change", e => annSection.style.display = e.target.checked ? "" : "none");
 
-  document.querySelector('[name="married"]').onchange = e => {
-    document.getElementById("mf-married").style.display = e.target.checked ? "" : "none";
-  };
-  document.getElementById("mf").onsubmit = async e => {
+  const form = h("form", null,
+    h("div", { class: "form-row" },
+      field("name", "Name *", { required: true }),
+      field("birthday", "Birthday (MM-DD) *", { required: true, placeholder: "01-28" }),
+    ),
+    h("div", { class: "form-row" },
+      field("phone", "Phone", { placeholder: "(555) 123-4567" }),
+      field("email", "Email", { type: "email", placeholder: "name@example.com" }),
+    ),
+    h("div", { class: "form-row" },
+      field("whatsapp", "WhatsApp (only if different from phone)"),
+      field("birth_year", "Birth Year (optional, enables {age})", { type: "number" }),
+    ),
+    h("label", { class: "check-label" }, marriedCheck, "Married"),
+    annSection,
+    textareaField("custom_birthday_message", "Custom Birthday Message", "Variables: {name} {age} {days} {day_of_week}"),
+    textareaField("custom_anniversary_message", "Custom Anniversary Message", "Variables: {name} {spouse} {years_married} {days}"),
+    h("label", { class: "check-label" }, pausedCheck, "Pause all notifications for this person"),
+  );
+
+  const cancelBtn = h("button", { type: "button", class: "btn btn-ghost", onclick: closeModal }, "Cancel");
+  const saveBtn = h("button", { type: "submit", class: "btn btn-primary" }, m.id ? "Update" : "Add Member");
+
+  form.addEventListener("submit", async e => {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const data = { name: fd.get("name"), birthday: fd.get("birthday"), phone: fd.get("phone") || null,
-      email: fd.get("email") || null, whatsapp: fd.get("whatsapp") || null,
-      birth_year: fd.get("birth_year") ? parseInt(fd.get("birth_year")) : null,
-      married: !!fd.get("married"), spouse_name: fd.get("spouse_name") || null,
-      anniversary: fd.get("anniversary") || null,
-      anniversary_year: fd.get("anniversary_year") ? parseInt(fd.get("anniversary_year")) : null,
-      custom_birthday_message: fd.get("custom_birthday_message") || "",
-      custom_anniversary_message: fd.get("custom_anniversary_message") || "",
-      notifications_paused: !!fd.get("notifications_paused") };
-    const result = m.id ? await api("PUT", `/members/${m.id}`, data) : await api("POST", "/members", data);
-    if (result) { closeModal(); navigate("members"); }
-  };
+    const data = {
+      name: fields.name.value, birthday: fields.birthday.value,
+      phone: fields.phone.value || null, email: fields.email.value || null,
+      whatsapp: fields.whatsapp.value || null,
+      birth_year: fields.birth_year.value ? parseInt(fields.birth_year.value) : null,
+      married: marriedCheck.checked,
+      spouse_name: fields.spouse_name.value || null,
+      anniversary: fields.anniversary.value || null,
+      anniversary_year: fields.anniversary_year.value ? parseInt(fields.anniversary_year.value) : null,
+      custom_birthday_message: fields.custom_birthday_message.value || "",
+      custom_anniversary_message: fields.custom_anniversary_message.value || "",
+      notifications_paused: pausedCheck.checked,
+    };
+    await withBusy(saveBtn, async () => {
+      const r = m.id ? await api("PUT", `/members/${m.id}`, data) : await api("POST", "/members", data);
+      if (r) { toast(m.id ? "Updated" : "Added", "success"); closeModal(); navigate("members"); }
+    });
+  });
+
+  openModal({ title: m.id ? `Edit ${m.name}` : "Add Member", body: form, actions: [cancelBtn, saveBtn] });
 }
 
-// ── Notifications page ────────────────────────────────────────────────────────
-registerPage("notifications", async () => {
+// ── Notifications ───────────────────────────────────────────────────────────
+pages.notifications = async (app) => {
   const members = await api("GET", "/members");
-  if (!members || !members.length) {
-    document.getElementById("app").innerHTML = '<h2>Notifications</h2><p class="empty-msg">No family members yet. Add some first.</p>';
+  if (members === null) return;
+  if (!members.length) {
+    app.append(
+      h("h1", { class: "page-title" }, "Send Notifications"),
+      h("div", { class: "card" }, emptyState("users", "No members yet", "Add at least one family member first.")),
+    );
     return;
   }
-  document.getElementById("app").innerHTML = `
-    <h2>Send Notifications</h2>
-    <div class="card">
-      <div class="form-row">
-        <div><label>Person</label><select id="np"><option value="">— select —</option>${members.map(m => `<option value="${m.id}">${m.name}</option>`).join("")}</select></div>
-        <div><label>Event</label><select id="ne"><option value="birthday">Birthday</option><option value="anniversary">Anniversary</option></select></div>
-        <div><label>Trigger</label><select id="nt"><option value="same_day">Same Day (personal wish)</option><option value="1_day">1-Day Advance (reminder)</option><option value="7_day">7-Day Advance (reminder)</option></select></div>
-      </div>
-      <div style="display:flex;gap:10px;margin-top:4px">
-        <button class="btn btn-primary" id="prev-btn">Preview</button>
-        <button class="btn btn-success" id="send-btn">Send Now</button>
-      </div>
-      <div id="prev-out"></div>
-    </div>`;
 
-  function payload() {
-    return { person_id: parseInt(document.getElementById("np").value),
-             event_type: document.getElementById("ne").value,
-             trigger_type: document.getElementById("nt").value };
+  const personSel = h("select", null,
+    h("option", { value: "" }, "— select a person —"),
+    ...members.map(m => h("option", { value: m.id }, m.name))
+  );
+  const eventSel = h("select", null, h("option", { value: "birthday" }, "Birthday"), h("option", { value: "anniversary" }, "Anniversary"));
+  const triggerSel = h("select", null,
+    h("option", { value: "same_day" }, "Same day · sends to the person"),
+    h("option", { value: "1_day" }, "1-day advance · reminder to others"),
+    h("option", { value: "7_day" }, "7-day advance · reminder to others"),
+  );
+  const previewBtn = h("button", { class: "btn btn-primary" }, icon("info"), "Preview");
+  const sendBtn = h("button", { class: "btn btn-success" }, icon("bell"), "Send Now");
+  const previewArea = h("div");
+
+  function readPayload() {
+    return {
+      person_id: parseInt(personSel.value),
+      event_type: eventSel.value,
+      trigger_type: triggerSel.value,
+    };
   }
-  document.getElementById("prev-btn").onclick = async () => {
-    const p = payload(); if (!p.person_id) { alert("Select a person"); return; }
-    const r = await api("POST", "/notifications/preview", p);
-    if (r) document.getElementById("prev-out").innerHTML =
-      `<strong>SMS / WhatsApp:</strong><div class="preview-box">${r.sms}</div><strong>Email:</strong><div class="preview-box">${r.email}</div>`;
-  };
-  document.getElementById("send-btn").onclick = async () => {
-    const p = payload(); if (!p.person_id) { alert("Select a person"); return; }
-    if (confirm("Send this notification now?")) {
-      const r = await api("POST", "/notifications/send", p);
-      if (r) alert("Dispatched! Check Logs for delivery status.");
+  function buildEmailSubject(p) {
+    const m = members.find(x => x.id === p.person_id) || {};
+    if (p.event_type === "birthday") {
+      return p.trigger_type === "same_day" ? `Happy Birthday, ${m.name}!` : `Reminder: ${m.name}'s birthday`;
     }
-  };
-});
+    const sp = m.spouse_name || "";
+    return p.trigger_type === "same_day" ? `Happy Anniversary, ${m.name} & ${sp}!` : `Reminder: ${m.name} & ${sp} anniversary`;
+  }
 
-// ── Logs page ─────────────────────────────────────────────────────────────────
-registerPage("logs", async () => {
-  document.getElementById("app").innerHTML = `
-    <h2>Notification Logs</h2>
-    <div class="filter-bar">
-      <select id="fc"><option value="">All channels</option><option>sms</option><option>whatsapp</option><option>email</option></select>
-      <select id="fs"><option value="">All statuses</option><option value="sent">Sent</option><option value="failed">Failed</option></select>
-      <select id="fe"><option value="">All events</option><option value="birthday">Birthday</option><option value="anniversary">Anniversary</option></select>
-      <button class="btn btn-primary btn-sm" id="fa">Filter</button>
-    </div>
-    <div id="logs-out"></div>`;
+  previewBtn.addEventListener("click", async () => {
+    const p = readPayload();
+    if (!p.person_id) { toast("Select a person first", "warn"); return; }
+    await withBusy(previewBtn, async () => {
+      const r = await api("POST", "/notifications/preview", p);
+      if (!r) return;
+      previewArea.replaceChildren(
+        h("div", { class: "preview-grid" },
+          h("div", { class: "preview-card" },
+            h("div", { class: "preview-label" }, icon("bell"), "SMS"),
+            h("div", { class: "preview-body" }, r.sms),
+          ),
+          h("div", { class: "preview-card" },
+            h("div", { class: "preview-label" }, icon("bell"), "WhatsApp"),
+            h("div", { class: "preview-body" }, r.whatsapp),
+          ),
+          h("div", { class: "preview-card" },
+            h("div", { class: "preview-label" }, icon("inbox"), "Email"),
+            h("div", { class: "preview-subject" }, `Subject: ${buildEmailSubject(p)}`),
+            h("div", { class: "preview-body" }, r.email),
+          ),
+        ),
+      );
+    });
+  });
+
+  sendBtn.addEventListener("click", async () => {
+    const p = readPayload();
+    if (!p.person_id) { toast("Select a person first", "warn"); return; }
+    const m = members.find(x => x.id === p.person_id);
+    if (!await confirmAsync(`Send ${p.event_type} (${p.trigger_type.replace("_", " ")}) for ${m.name} now?`, { confirmText: "Send" })) return;
+    await withBusy(sendBtn, async () => {
+      const r = await api("POST", "/notifications/send", p);
+      if (r) toast("Dispatched — check Logs for delivery status", "success");
+    });
+  });
+
+  app.append(
+    h("h1", { class: "page-title" }, "Send Notifications"),
+    h("div", { class: "card" },
+      h("div", { class: "form-row" },
+        h("div", { class: "field" }, h("label", null, "Person"), personSel),
+        h("div", { class: "field" }, h("label", null, "Event"), eventSel),
+        h("div", { class: "field" }, h("label", null, "Trigger"), triggerSel),
+      ),
+      h("div", { class: "flex gap-2" }, previewBtn, sendBtn),
+      previewArea,
+    ),
+  );
+};
+
+// ── Logs ────────────────────────────────────────────────────────────────────
+pages.logs = async (app) => {
+  const channelSel = h("select", null, h("option", { value: "" }, "All channels"),
+    h("option", { value: "sms" }, "SMS"), h("option", { value: "whatsapp" }, "WhatsApp"), h("option", { value: "email" }, "Email"));
+  const statusSel = h("select", null, h("option", { value: "" }, "All statuses"),
+    h("option", { value: "sent" }, "Sent"), h("option", { value: "failed" }, "Failed"));
+  const eventSel = h("select", null, h("option", { value: "" }, "All events"),
+    h("option", { value: "birthday" }, "Birthday"), h("option", { value: "anniversary" }, "Anniversary"));
+  const fromInput = h("input", { type: "date", "aria-label": "From date" });
+  const toInput = h("input", { type: "date", "aria-label": "To date" });
+  const filterBtn = h("button", { class: "btn btn-primary btn-sm" }, "Apply filters");
+
+  const out = h("div");
 
   async function load() {
     const params = new URLSearchParams();
-    ["fc","fs","fe"].forEach((id, i) => { const v = document.getElementById(id).value; if (v) params.set(["channel","status","event_type"][i], v); });
+    if (channelSel.value) params.set("channel", channelSel.value);
+    if (statusSel.value) params.set("status", statusSel.value);
+    if (eventSel.value) params.set("event_type", eventSel.value);
+    if (fromInput.value) params.set("date_from", fromInput.value);
+    if (toInput.value) params.set("date_to", toInput.value);
     const logs = await api("GET", `/logs?${params}`);
     if (!logs) return;
-    document.getElementById("logs-out").innerHTML = logs.length ? `<table>
-      <thead><tr><th>Person</th><th>Event</th><th>Trigger</th><th>Channel</th><th>Status</th><th>Sent At</th><th></th></tr></thead>
-      <tbody>${logs.map(l => `<tr>
-        <td>${l.person_name}</td><td>${l.event_type}</td><td>${l.trigger_type}</td><td>${l.channel}</td>
-        <td><span class="badge badge-${l.status}">${l.status}${l.error_message ? " · " + l.error_message : ""}</span></td>
-        <td style="font-size:.78rem;color:#9ca3af">${l.sent_at}</td>
-        <td>${l.status === "failed" ? `<button class="btn btn-sm btn-primary retry-btn" data-id="${l.id}">Retry</button>` : ""}</td>
-      </tr>`).join("")}</tbody></table>`
-    : '<p class="empty-msg">No logs found.</p>';
-    document.querySelectorAll(".retry-btn").forEach(b => b.onclick = async () => { await api("POST", `/logs/${b.dataset.id}/retry`); load(); });
+    if (!logs.length) {
+      out.replaceChildren(h("div", { class: "card" }, emptyState("inbox", "No logs match these filters", "Try clearing filters or trigger a notification.")));
+      return;
+    }
+    const rows = logs.map(l => {
+      const errCell = l.error_message
+        ? h("div", { class: "log-error", title: "Click to expand", onclick: e => e.currentTarget.classList.toggle("expanded") }, l.error_message)
+        : "";
+      const retryBtn = l.status === "failed"
+        ? h("button", {
+            class: "btn btn-sm btn-primary",
+            onclick: async (e) => { await withBusy(e.currentTarget, async () => {
+              const r = await api("POST", `/logs/${l.id}/retry`);
+              if (r) { toast("Retry dispatched", "success"); load(); }
+            }); },
+          }, icon("refresh"), "Retry")
+        : "";
+      return h("tr", null,
+        h("td", null, h("strong", null, l.person_name)),
+        h("td", { class: "muted text-sm" }, `${l.event_type} · ${l.trigger_type.replace("_", " ")}`),
+        h("td", null, l.channel),
+        h("td", null,
+          h("span", { class: `badge badge-${l.status}` }, l.status),
+          errCell,
+        ),
+        h("td", { class: "muted text-sm mono" }, l.sent_at),
+        h("td", null, retryBtn),
+      );
+    });
+    out.replaceChildren(h("div", { class: "table-wrap" },
+      h("table", null,
+        h("thead", null, h("tr", null,
+          h("th", null, "Person"), h("th", null, "Event"), h("th", null, "Channel"),
+          h("th", null, "Status"), h("th", null, "Sent At"), h("th", null, ""),
+        )),
+        h("tbody", null, ...rows),
+      ),
+    ));
   }
-  document.getElementById("fa").onclick = load;
-  load();
-});
+  filterBtn.addEventListener("click", load);
 
-// ── Schedule page ─────────────────────────────────────────────────────────────
-registerPage("schedule", async () => {
+  app.append(
+    h("h1", { class: "page-title" }, "Notification Logs"),
+    h("div", { class: "filter-bar" },
+      h("div", { class: "field" }, h("label", null, "Channel"), channelSel),
+      h("div", { class: "field" }, h("label", null, "Status"), statusSel),
+      h("div", { class: "field" }, h("label", null, "Event"), eventSel),
+      h("div", { class: "field" }, h("label", null, "From"), fromInput),
+      h("div", { class: "field" }, h("label", null, "To"), toInput),
+      filterBtn,
+    ),
+    out,
+  );
+  load();
+};
+
+// ── Schedule ────────────────────────────────────────────────────────────────
+pages.schedule = async (app) => {
   const s = await api("GET", "/settings");
   if (!s) return;
-  document.getElementById("app").innerHTML = `
-    <h2>Schedule</h2>
-    <div class="card"><h3>Advance Reminder Windows</h3>
-      <div class="form-row">
-        <div><label>Week-ahead reminder (days before)</label><input type="number" id="sw" value="${s.advance_days_week}"></div>
-        <div><label>Day-before reminder (days before)</label><input type="number" id="sd" value="${s.advance_days_day}"></div>
-      </div></div>
-    <div class="card"><h3>Job Times</h3>
-      <div class="form-row">
-        <div><label>Advance reminders run at</label><input type="time" id="sj1" value="${s.job1_time}"></div>
-        <div><label>Day-of wishes run at</label><input type="time" id="sj2" value="${s.job2_time}"></div>
-      </div>
-      <div style="max-width:200px"><label>Catch-up window (hours)</label><input type="number" id="sc" value="${s.catch_up_hours}"></div>
-    </div>
-    <div class="card"><h3>Channels</h3>
-      <label class="check-label"><input type="checkbox" id="ssms" ${s.sms_enabled==="true"?"checked":""}> Enable SMS</label>
-      <label class="check-label"><input type="checkbox" id="swa" ${s.whatsapp_enabled==="true"?"checked":""}> Enable WhatsApp</label>
-      <label class="check-label"><input type="checkbox" id="semail" ${s.email_enabled==="true"?"checked":""}> Enable Email</label>
-    </div>
-    <button class="btn btn-primary" id="save-sched">Save Schedule</button>`;
 
-  document.getElementById("save-sched").onclick = async () => {
-    const r = await api("PUT", "/settings", {
-      advance_days_week: document.getElementById("sw").value,
-      advance_days_day: document.getElementById("sd").value,
-      job1_time: document.getElementById("sj1").value,
-      job2_time: document.getElementById("sj2").value,
-      catch_up_hours: document.getElementById("sc").value,
-      sms_enabled: document.getElementById("ssms").checked ? "true" : "false",
-      whatsapp_enabled: document.getElementById("swa").checked ? "true" : "false",
-      email_enabled: document.getElementById("semail").checked ? "true" : "false",
+  const sw = h("input", { type: "number", min: 0, max: 365, value: s.advance_days_week });
+  const sd = h("input", { type: "number", min: 0, max: 365, value: s.advance_days_day });
+  const sj1 = h("input", { type: "time", value: s.job1_time });
+  const sj2 = h("input", { type: "time", value: s.job2_time });
+  const sc = h("input", { type: "number", min: 0, max: 24, value: s.catch_up_hours });
+  const ssms = h("input", { type: "checkbox", checked: s.sms_enabled === "true" });
+  const swa = h("input", { type: "checkbox", checked: s.whatsapp_enabled === "true" });
+  const semail = h("input", { type: "checkbox", checked: s.email_enabled === "true" });
+  const saveBtn = h("button", { class: "btn btn-primary" }, icon("check"), "Save");
+
+  saveBtn.addEventListener("click", async () => {
+    await withBusy(saveBtn, async () => {
+      const r = await api("PUT", "/settings", {
+        advance_days_week: String(sw.value),
+        advance_days_day: String(sd.value),
+        job1_time: sj1.value,
+        job2_time: sj2.value,
+        catch_up_hours: String(sc.value),
+        sms_enabled: ssms.checked ? "true" : "false",
+        whatsapp_enabled: swa.checked ? "true" : "false",
+        email_enabled: semail.checked ? "true" : "false",
+      });
+      if (r) toast("Schedule applied — changes are live", "success");
     });
-    if (r) alert("Schedule saved! Restart the app for job time changes to take effect.");
-  };
-});
+  });
 
-// ── Settings page ─────────────────────────────────────────────────────────────
-registerPage("settings", async () => {
+  app.append(
+    h("h1", { class: "page-title" }, "Schedule & Channels"),
+    h("div", { class: "card" },
+      h("h2", { class: "section-title" }, "Advance reminder windows"),
+      h("p", { class: "muted text-sm", style: { marginBottom: "12px" } },
+        "How many days before an event to send reminder messages to the rest of the family."),
+      h("div", { class: "form-row" },
+        h("div", { class: "field" }, h("label", null, "Week-ahead (days before)"), sw),
+        h("div", { class: "field" }, h("label", null, "Day-before (days before)"), sd),
+      ),
+    ),
+    h("div", { class: "card" },
+      h("h2", { class: "section-title" }, "Job times"),
+      h("div", { class: "form-row" },
+        h("div", { class: "field" }, h("label", null, "Advance reminders run at"), sj1),
+        h("div", { class: "field" }, h("label", null, "Day-of wishes run at"), sj2),
+      ),
+      h("div", { class: "field", style: { maxWidth: "240px" } },
+        h("label", null, "Reboot catch-up window (hours)"), sc,
+        h("div", { class: "field-help" }, "If the Pi was offline past the day-of run time, fire once on startup if within this window."),
+      ),
+    ),
+    h("div", { class: "card" },
+      h("h2", { class: "section-title" }, "Channels"),
+      h("label", { class: "check-label" }, ssms, "Enable SMS"),
+      h("br"),
+      h("label", { class: "check-label" }, swa, "Enable WhatsApp"),
+      h("br"),
+      h("label", { class: "check-label" }, semail, "Enable Email"),
+    ),
+    saveBtn,
+  );
+};
+
+// ── Settings ────────────────────────────────────────────────────────────────
+pages.settings = async (app) => {
   const c = await api("GET", "/credentials");
   if (!c) return;
-  document.getElementById("app").innerHTML = `
-    <h2>Settings</h2>
-    <div class="card"><h3>Twilio — SMS &amp; WhatsApp</h3>
-      ${cf("twilio_account_sid","Account SID",c.twilio_account_sid,true)}
-      ${cf("twilio_auth_token","Auth Token",c.twilio_auth_token,true)}
-      ${cf("twilio_from_number","SMS From Number",c.twilio_from_number,false)}
-      ${cf("twilio_whatsapp_number","WhatsApp Number",c.twilio_whatsapp_number,false)}
-    </div>
-    <div class="card"><h3>Email — SMTP</h3>
-      ${cf("smtp_host","SMTP Host",c.smtp_host,false)}
-      <div class="form-row"><div>${cf("smtp_port","Port",String(c.smtp_port),false)}</div><div>${cf("smtp_username","Username",c.smtp_username,false)}</div></div>
-      ${cf("smtp_password","Password",c.smtp_password,true)}
-      ${cf("smtp_from_address","From Address",c.smtp_from_address,false)}
-    </div>
-    <button class="btn btn-primary" id="save-creds" style="margin-bottom:24px">Save Credentials</button>
-    <div class="card"><h3>Data Management</h3>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-primary" id="exp-btn">Export JSON</button>
-        <label class="btn" style="background:#6b7280;color:#fff;cursor:pointer">
-          Import JSON <input type="file" id="imp-file" accept=".json" style="display:none">
-        </label>
-      </div>
-    </div>`;
 
-  document.querySelectorAll(".ctog").forEach(btn => {
-    btn.onclick = () => {
-      const inp = document.getElementById(btn.dataset.for);
-      inp.type = inp.type === "password" ? "text" : "password";
-      btn.textContent = inp.type === "password" ? "Show" : "Hide";
-    };
+  function credField(name, label, value, masked) {
+    const input = h("input", {
+      class: "cinp", id: `ci_${name}`, name,
+      type: masked ? "password" : "text",
+      value: value != null ? value : "",
+    });
+    let toggle = null;
+    if (masked) {
+      toggle = h("button", {
+        type: "button", class: "cred-toggle",
+        onclick: () => {
+          input.type = input.type === "password" ? "text" : "password";
+          toggle.textContent = input.type === "password" ? "Show" : "Hide";
+        },
+      }, "Show");
+    }
+    return h("div", { class: "cred-wrap" },
+      h("label", null, label),
+      h("div", { style: { position: "relative" } }, input, toggle),
+    );
+  }
+  const inputs = {};
+  function reg(name, label, masked) {
+    const wrap = credField(name, label, c[name], masked);
+    inputs[name] = $("input", wrap);
+    return wrap;
+  }
+
+  const saveBtn = h("button", { class: "btn btn-primary" }, icon("check"), "Save credentials");
+  const exportBtn = h("button", { class: "btn btn-ghost" }, icon("download"), "Export JSON");
+  const importInput = h("input", { type: "file", accept: ".json", style: { display: "none" } });
+  const importLabel = h("label", { class: "btn btn-ghost", style: { cursor: "pointer" } }, icon("upload"), "Import JSON", importInput);
+
+  saveBtn.addEventListener("click", async () => {
+    await withBusy(saveBtn, async () => {
+      const data = {};
+      for (const [k, el] of Object.entries(inputs)) data[k] = el.value || null;
+      if (data.smtp_port) data.smtp_port = parseInt(data.smtp_port);
+      const r = await api("PUT", "/credentials", data);
+      if (r) toast("Credentials saved — config reloaded", "success");
+    });
   });
-  document.getElementById("save-creds").onclick = async () => {
-    const data = {};
-    document.querySelectorAll(".cinp").forEach(inp => { data[inp.name] = inp.value || null; });
-    if (data.smtp_port) data.smtp_port = parseInt(data.smtp_port);
-    const r = await api("PUT", "/credentials", data);
-    if (r) alert("Credentials saved and config reloaded!");
-  };
-  document.getElementById("exp-btn").onclick = () => { window.location.href = "/api/export"; };
-  document.getElementById("imp-file").onchange = async e => {
+  exportBtn.addEventListener("click", () => { window.location.href = "/api/export"; });
+  importInput.addEventListener("change", async e => {
     const file = e.target.files[0]; if (!file) return;
-    const json = JSON.parse(await file.text());
-    const r = await api("POST", "/import", json);
-    if (r) alert(`Import complete: ${r.imported} added, ${r.skipped} skipped.`);
+    try {
+      const json = JSON.parse(await file.text());
+      const r = await api("POST", "/import", json);
+      if (r) toast(`Import complete — ${r.imported} added, ${r.skipped} skipped`, "success");
+    } catch (err) {
+      toast(`Bad JSON: ${err.message}`, "error");
+    }
     e.target.value = "";
-  };
-});
+  });
 
-function cf(name, label, value, masked) {
-  const id = "ci_" + name;
-  return `<label>${label}</label><div class="cred-wrap">
-    <input class="cinp" id="${id}" name="${name}" type="${masked ? "password" : "text"}" value="${esc(value || "")}">
-    ${masked ? `<button class="cred-toggle ctog" data-for="${id}">Show</button>` : ""}
-  </div>`;
+  app.append(
+    h("h1", { class: "page-title" }, "Settings"),
+    h("div", { class: "card" },
+      h("h2", { class: "section-title" }, "Twilio (SMS & WhatsApp)"),
+      reg("twilio_account_sid", "Account SID", true),
+      reg("twilio_auth_token", "Auth Token", true),
+      h("div", { class: "form-row" },
+        h("div", null, reg("twilio_from_number", "SMS From Number", false)),
+        h("div", null, reg("twilio_whatsapp_number", "WhatsApp Number", false)),
+      ),
+    ),
+    h("div", { class: "card" },
+      h("h2", { class: "section-title" }, "SMTP (Email)"),
+      reg("smtp_host", "Host", false),
+      h("div", { class: "form-row" },
+        h("div", null, reg("smtp_port", "Port", false)),
+        h("div", null, reg("smtp_username", "Username", false)),
+      ),
+      reg("smtp_password", "Password", true),
+      reg("smtp_from_address", "From Address", false),
+    ),
+    saveBtn,
+    h("div", { class: "card mt-5" },
+      h("h2", { class: "section-title" }, "Data management"),
+      h("div", { class: "flex gap-2", style: { flexWrap: "wrap" } }, exportBtn, importLabel),
+      h("p", { class: "muted text-sm mt-4" },
+        "Import accepts both the export format and the legacy dict-of-dicts format. Members are deduped by name."),
+    ),
+  );
+};
+
+// ── Init ────────────────────────────────────────────────────────────────────
+function buildNav() {
+  const ul = $("#nav-list");
+  ul.replaceChildren(...NAV.map(item => h("li", null,
+    h("a", {
+      href: "#", "data-page": item.id,
+      onclick: e => { e.preventDefault(); navigate(item.id); },
+    }, icon(item.icon), item.label),
+  )));
 }
+buildNav();
 
-function esc(s) {
-  if (!s) return "";
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
+// Theme init — restore saved or follow OS
+(function () {
+  const saved = readTheme();
+  if (saved) document.documentElement.setAttribute("data-theme", saved);
+  paintThemeToggle();
+  $("#theme-toggle").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    setTheme(cur === "dark" ? "light" : "dark");
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintThemeToggle);
+})();
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// Mobile drawer
+$("#menu-btn").addEventListener("click", openSidebar);
+$("#sidebar-scrim").addEventListener("click", closeSidebar);
+
 navigate("members");
