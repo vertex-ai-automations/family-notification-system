@@ -978,9 +978,9 @@ pages.tree = async (app) => {
     try {
       const chart = f3.createChart("#FamilyChart", f3Data)
         .setTransitionTime(700)
-        .setCardXSpacing(230)
-        .setCardYSpacing(150)
-        .setOrientationVertical()
+        .setCardXSpacing(260)
+        .setCardYSpacing(110)
+        .setOrientationHorizontal()
         .setSingleParentEmptyCard(false);
 
       chart.setCard(f3.CardHtml)
