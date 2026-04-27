@@ -52,9 +52,10 @@ def get_settings(db: sqlite3.Connection = Depends(get_db)):
 @router.put("/settings")
 def update_settings(updates: Dict[str, str], db: sqlite3.Connection = Depends(get_db)):
     validated = {k: _validate_setting(k, v) for k, v in updates.items()}
-    for key, value in validated.items():
-        db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)", (key, value))
-    db.commit()
+    # `with db:` is SQLite's transaction context — commits on success, rolls back on exception.
+    with db:
+        for key, value in validated.items():
+            db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)", (key, value))
     # Live apply: channel toggles + Twilio creds = service rebuild; timing keys = reschedule.
     if any(k.endswith("_enabled") for k in validated):
         from app.service_factory import build_services

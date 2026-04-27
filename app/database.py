@@ -55,6 +55,8 @@ def create_tables(conn: sqlite3.Connection):
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_log_person_sent ON notification_log(person_id, sent_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_log_status ON notification_log(status);
     """)
     conn.commit()
 

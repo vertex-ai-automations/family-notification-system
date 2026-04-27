@@ -1,5 +1,6 @@
 import datetime
 import os
+import zoneinfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.database import get_connection
 from app.utils.messaging import render_message, get_default_message
@@ -24,8 +25,18 @@ def set_services(services_list: list):
     _services = services_list
 
 
+def today_local() -> datetime.date:
+    """Return today's date in the configured TZ, not the system's TZ.
+    Important for DST/midnight edge cases."""
+    try:
+        tz = zoneinfo.ZoneInfo(_get_timezone())
+    except zoneinfo.ZoneInfoNotFoundError:
+        tz = None
+    return datetime.datetime.now(tz).date()
+
+
 def days_until(date_str: str) -> int:
-    today = datetime.date.today()
+    today = today_local()
     month, day = map(int, date_str.split("-"))
     target = _safe_date(today.year, month, day)
     if target < today:

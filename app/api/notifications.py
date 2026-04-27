@@ -23,7 +23,6 @@ class PauseRequest(BaseModel):
 
 def _compute_days(person: dict, event_type: str) -> int:
     from app.scheduler import days_until
-    today = datetime.date.today()
     date_str = person.get("anniversary") if event_type == "anniversary" and person.get("anniversary") else person.get("birthday")
     if not date_str:
         return 0
