@@ -169,17 +169,19 @@ body {
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  font-family: var(--font-heading);
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--color-primary);
+  justify-content: center;
   margin-bottom: var(--sp-6);
-  padding: 0 var(--sp-2);
-  letter-spacing: -0.02em;
+  padding: var(--sp-2) 0;
 }
-
-.sidebar-brand svg { width: 22px; height: 22px; }
+.sidebar-brand img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 50%;
+  filter: drop-shadow(0 2px 8px rgba(15, 23, 42, 0.12));
+  transition: transform var(--motion) var(--ease-out);
+}
+.sidebar-brand img:hover { transform: scale(1.04); }
 
 .nav-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
 
@@ -237,6 +239,12 @@ main {
   padding: 0 var(--sp-4);
   align-items: center;
   gap: var(--sp-3);
+}
+.topbar-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 50%;
 }
 .topbar-brand {
   flex: 1;
