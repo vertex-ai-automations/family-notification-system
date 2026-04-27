@@ -938,21 +938,48 @@ pages.tree = async (app) => {
     return;
   }
 
-  const f3Data = buildFamilyChartData(nodes);
+  // Compute connection count so the most-connected person becomes the default
+  // focus — that gives the largest visible tree out of the box. f3 uses
+  // data[0].id as the main person on first render.
+  const connections = {};
+  for (const n of nodes) {
+    connections[n.id] = (n.mother_id ? 1 : 0) + (n.father_id ? 1 : 0) + (n.spouse_id ? 1 : 0);
+  }
+  for (const n of nodes) {
+    if (n.mother_id) connections[n.mother_id] = (connections[n.mother_id] || 0) + 1;
+    if (n.father_id) connections[n.father_id] = (connections[n.father_id] || 0) + 1;
+  }
+  const sortedNodes = [...nodes].sort((a, b) => (connections[b.id] || 0) - (connections[a.id] || 0));
+  const f3Data = buildFamilyChartData(sortedNodes);
+
+  // "Focus on" picker — switches main person so users can jump between
+  // disjoint family clusters (the chart only shows one connected component).
+  const focusSelect = h("select", { class: "tree-focus-select", "aria-label": "Focus tree on" },
+    ...[...nodes].sort((a, b) => a.name.localeCompare(b.name))
+      .map(n => h("option", { value: String(n.id) }, n.name)),
+  );
+  focusSelect.value = String(sortedNodes[0].id);
+
   const chartHost = h("div", { id: "FamilyChart", class: "f3 family-chart-host" });
-  const helpRow = h("p", { class: "muted text-sm", style: { marginTop: "0.75rem" } },
-    "Click a card to re-center the tree on that person. Scroll to zoom, drag to pan.",
+  const wrapper = h("div", { class: "tree-page-bleed" }, chartHost);
+
+  app.replaceChildren(
+    header,
+    h("div", { class: "tree-toolbar" },
+      h("label", { class: "tree-focus-label" }, "Focus on:", focusSelect),
+      h("span", { class: "muted text-sm" }, "Click a card to re-center · scroll to zoom · drag to pan"),
+    ),
+    wrapper,
   );
 
-  app.replaceChildren(header, chartHost, helpRow);
-
   // Defer to next frame so the host has dimensions before f3 measures it
+  let chartRef = null;
   requestAnimationFrame(() => {
     try {
       const chart = f3.createChart("#FamilyChart", f3Data)
         .setTransitionTime(700)
-        .setCardXSpacing(220)
-        .setCardYSpacing(140)
+        .setCardXSpacing(230)
+        .setCardYSpacing(150)
         .setOrientationVertical()
         .setSingleParentEmptyCard(false);
 
@@ -963,11 +990,18 @@ pages.tree = async (app) => {
         .setStyle("imageRect")
         .setOnHoverPathToMain();
 
-      chart.updateTree({ initial: true });
+      chart.updateTree({ initial: true, tree_position: "fit" });
+      chartRef = chart;
     } catch (err) {
       console.error("family-chart failed:", err);
       toast("Could not render tree — see console", "error");
     }
+  });
+
+  focusSelect.addEventListener("change", () => {
+    if (!chartRef) return;
+    chartRef.store.updateMainId(focusSelect.value);
+    chartRef.updateTree({ tree_position: "fit" });
   });
 
 };
