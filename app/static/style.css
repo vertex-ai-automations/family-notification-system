@@ -731,6 +731,13 @@ td .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .toast { max-width: none; }
 }
 
+/* ── Family Tree ─────────────────────────────────────────────────────────── */
+.tree-legend { display: flex; gap: 1.5rem; padding: 0.75rem 0.25rem; align-items: center; font-size: 0.875rem; color: var(--color-muted); flex-wrap: wrap; }
+.tree-legend-item { display: flex; align-items: center; gap: 0.5rem; }
+.tree-legend-line { display: inline-block; width: 2rem; height: 2px; border-radius: 1px; }
+.tree-line-parent { background: var(--color-primary); opacity: 0.75; }
+.tree-line-spouse { background: none; border-top: 2px dashed #e91e8c; height: 0; opacity: 0.8; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

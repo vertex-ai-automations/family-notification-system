@@ -63,6 +63,27 @@ def upcoming_events(db: sqlite3.Connection = Depends(get_db)):
     return sorted(events, key=lambda x: x["days_away"])
 
 
+@router.get("/tree")
+def family_tree(db: sqlite3.Connection = Depends(get_db)):
+    rows = db.execute(
+        "SELECT id, name, mother_id, father_id, spouse_id FROM people ORDER BY name"
+    ).fetchall()
+    nodes = [dict(r) for r in rows]
+    edges: list = []
+    seen_spouses: set = set()
+    for n in nodes:
+        if n["mother_id"]:
+            edges.append({"source": n["mother_id"], "target": n["id"], "relation": "parent"})
+        if n["father_id"]:
+            edges.append({"source": n["father_id"], "target": n["id"], "relation": "parent"})
+        if n["spouse_id"]:
+            pair = tuple(sorted((n["id"], n["spouse_id"])))
+            if pair not in seen_spouses:
+                seen_spouses.add(pair)
+                edges.append({"source": n["id"], "target": n["spouse_id"], "relation": "spouse"})
+    return {"nodes": nodes, "edges": edges}
+
+
 @router.post("", status_code=201)
 def create_member(person: PersonCreate, db: sqlite3.Connection = Depends(get_db)):
     data = person.model_dump()

@@ -51,6 +51,7 @@ const ICONS = {
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
   inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  gitBranch: '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
 };
 function icon(name, attrs = {}) {
   const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ""}</svg>`;
@@ -245,6 +246,7 @@ function emptyState(iconName, title, sub) {
 // ── Router ──────────────────────────────────────────────────────────────────
 const NAV = [
   { id: "members",       label: "Members",       icon: "users" },
+  { id: "tree",          label: "Family Tree",   icon: "gitBranch" },
   { id: "notifications", label: "Notifications", icon: "bell" },
   { id: "logs",          label: "Logs",          icon: "list" },
   { id: "schedule",      label: "Schedule",      icon: "clock" },
@@ -830,6 +832,115 @@ pages.settings = async (app) => {
         "Import accepts both the export format and the legacy dict-of-dicts format. Members are deduped by name."),
     ),
   );
+};
+
+// ── Family Tree ─────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+pages.tree = async (app) => {
+  const data = await api("GET", "/members/tree");
+  if (data === null) return;
+  const { nodes, edges } = data;
+
+  const header = h("div", { class: "page-header" },
+    h("h1", { class: "page-title" }, "Family Tree"),
+  );
+
+  if (!nodes.length) {
+    app.replaceChildren(header,
+      h("div", { class: "card" }, emptyState("users", "No family members yet",
+        "Add members and link their parent and spouse relationships to see the family tree.")),
+    );
+    return;
+  }
+
+  const parentEdges = edges.filter(e => e.relation === "parent");
+  const spouseEdges = edges.filter(e => e.relation === "spouse");
+
+  // BFS generation assignment — roots are nodes with no incoming parent edge
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const hasParent = new Set(parentEdges.map(e => e.target));
+  const roots = nodes.filter(n => !hasParent.has(n.id));
+  const gen = {};
+  roots.forEach(r => { gen[r.id] = 0; });
+  const queue = [...roots];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const e of parentEdges) {
+      if (e.source !== cur.id) continue;
+      if (gen[e.target] === undefined) {
+        gen[e.target] = (gen[cur.id] ?? 0) + 1;
+        if (byId[e.target]) queue.push(byId[e.target]);
+      }
+    }
+  }
+  nodes.forEach(n => { if (gen[n.id] === undefined) gen[n.id] = 0; });
+
+  const maxGen = Math.max(0, ...Object.values(gen));
+  const genRows = Array.from({ length: maxGen + 1 }, () => []);
+  nodes.forEach(n => genRows[gen[n.id]].push(n));
+
+  // Position — centre each generation row within the widest row
+  const NW = 130, NH = 44, HGAP = 28, VGAP = 80, PAD = 20;
+  const rowWidths = genRows.map(row => row.length * NW + Math.max(0, row.length - 1) * HGAP);
+  const totalW = Math.max(...rowWidths);
+  const pos = {};
+  genRows.forEach((row, g) => {
+    const startX = PAD + Math.max(0, (totalW - rowWidths[g]) / 2);
+    row.forEach((n, i) => {
+      pos[n.id] = { x: startX + i * (NW + HGAP), y: PAD + g * (NH + VGAP) };
+    });
+  });
+  const svgW = totalW + PAD * 2;
+  const svgH = PAD + (maxGen + 1) * (NH + VGAP);
+
+  // Build SVG (user-supplied names are HTML-escaped)
+  const parts = [];
+
+  for (const e of parentEdges) {
+    const s = pos[e.source], t = pos[e.target];
+    if (!s || !t) continue;
+    const x1 = s.x + NW / 2, y1 = s.y + NH;
+    const x2 = t.x + NW / 2, y2 = t.y;
+    const my = (y1 + y2) / 2;
+    parts.push(`<path d="M${x1} ${y1} C${x1} ${my},${x2} ${my},${x2} ${y2}" fill="none" stroke="var(--color-primary,#2563eb)" stroke-width="2" opacity="0.65"/>`);
+  }
+  for (const e of spouseEdges) {
+    const s = pos[e.source], t = pos[e.target];
+    if (!s || !t) continue;
+    parts.push(`<line x1="${s.x + NW / 2}" y1="${s.y + NH / 2}" x2="${t.x + NW / 2}" y2="${t.y + NH / 2}" stroke="#e91e8c" stroke-width="1.75" stroke-dasharray="6 3" opacity="0.75"/>`);
+  }
+  for (const n of nodes) {
+    const p = pos[n.id];
+    if (!p) continue;
+    const label = n.name.length > 16 ? n.name.slice(0, 14) + '…' : n.name;
+    parts.push(
+      `<rect x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" rx="8" fill="var(--color-surface,#fff)" stroke="var(--color-border,#e2e8f0)" stroke-width="1.5"/>`,
+      `<text x="${p.x + NW / 2}" y="${p.y + NH / 2}" text-anchor="middle" dominant-baseline="central" font-size="13" font-family="inherit" fill="var(--color-text,#1e293b)">${escHtml(label)}</text>`,
+    );
+  }
+
+  const svgHtml = `<svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" style="display:block" xmlns="http://www.w3.org/2000/svg">${parts.join('')}</svg>`;
+  const canvas = h("div", { class: "card", style: { overflowX: "auto", padding: "1.25rem" }, html: svgHtml });
+
+  const legend = h("div", { class: "tree-legend" },
+    h("span", { class: "tree-legend-item" },
+      h("span", { class: "tree-legend-line tree-line-parent" }),
+      " Parent / child",
+    ),
+    h("span", { class: "tree-legend-item" },
+      h("span", { class: "tree-legend-line tree-line-spouse" }),
+      " Spouse",
+    ),
+  );
+
+  app.replaceChildren(header, canvas, legend);
+  if (!edges.length) {
+    app.append(h("p", { class: "muted text-sm", style: { padding: "0 0.25rem" } },
+      "No relationships linked yet — edit a member to set parent and spouse connections."));
+  }
 };
 
 // ── Init ────────────────────────────────────────────────────────────────────
