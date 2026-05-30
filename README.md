@@ -67,13 +67,13 @@ See `CLAUDE.md` for the developer-facing architecture detail.
 Single command — clones the repo, creates the venv, installs deps, scaffolds `.env`, and installs the systemd unit:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vertex-ai-automations/family-notification-system/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ihassan8/family-notification-system/master/install.sh | bash
 ```
 
 Or with options (custom install location, port, branch):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vertex-ai-automations/family-notification-system/master/install.sh \
+curl -fsSL https://raw.githubusercontent.com/ihassan8/family-notification-system/master/install.sh \
   | TARGET_DIR=/opt/family-notifier PORT=8080 bash
 ```
 
@@ -87,7 +87,7 @@ sudo systemctl start family-notifier
 If you've already cloned the repo, just run `./install.sh` from inside it — the same script detects the existing checkout and skips the clone step.
 
 The installer:
-- clones `vertex-ai-automations/family-notification-system` (skipped when run from inside an existing checkout)
+- clones `ihassan8/family-notification-system` (skipped when run from inside an existing checkout)
 - creates `venv/` and installs `requirements.txt`
 - copies `.env.example` → `.env` if missing
 - substitutes the current user, repo path, and port into the systemd unit and installs it to `/etc/systemd/system/family-notifier.service`
@@ -98,7 +98,7 @@ Flags & env overrides: `PORT=8080`, `TARGET_DIR=/opt/family-notifier`, `BRANCH=v
 ### Option B — manual
 
 ```bash
-git clone https://github.com/vertex-ai-automations/family-notification-system.git
+git clone https://github.com/ihassan8/family-notification-system.git
 cd family-notification-system
 
 python3 -m venv venv

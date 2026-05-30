@@ -5,9 +5,9 @@
 # Two ways to run:
 #
 #   1) Curl-pipe (clones the repo for you):
-#        curl -fsSL https://raw.githubusercontent.com/vertex-ai-automations/family-notification-system/master/install.sh | bash
+#        curl -fsSL https://raw.githubusercontent.com/ihassan8/family-notification-system/master/install.sh | bash
 #        # or, with options:
-#        curl -fsSL https://raw.githubusercontent.com/vertex-ai-automations/family-notification-system/master/install.sh \
+#        curl -fsSL https://raw.githubusercontent.com/ihassan8/family-notification-system/master/install.sh \
 #          | TARGET_DIR=/opt/family-notifier PORT=8080 bash
 #
 #   2) From inside an existing clone:
@@ -16,14 +16,14 @@
 #        PORT=8080 ./install.sh
 #
 # Environment overrides:
-#   REPO_URL    git URL to clone (default: https://github.com/vertex-ai-automations/family-notification-system.git)
+#   REPO_URL    git URL to clone (default: https://github.com/ihassan8/family-notification-system.git)
 #   BRANCH      branch / tag to check out (default: master)
 #   TARGET_DIR  directory to clone into (default: ./family-notification-system)
 #   PORT        TCP port for the dashboard (default: 8001)
 
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/vertex-ai-automations/family-notification-system.git}"
+REPO_URL="${REPO_URL:-https://github.com/ihassan8/family-notification-system.git}"
 BRANCH="${BRANCH:-master}"
 TARGET_DIR="${TARGET_DIR:-$(pwd)/family-notification-system}"
 PORT="${PORT:-8001}"
